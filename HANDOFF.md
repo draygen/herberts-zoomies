@@ -9,9 +9,9 @@
 
 ## 2. Technology & Architecture Choices
 - **Engine**: Pure Kotlin Native SurfaceView Game Engine with dual-module separation:
-  - `game-core`: Clean, deterministic game simulation engine with zero Android runtime dependencies. Encapsulates `Herbert`, `LivingRoomWorld`, `ObstacleManager`, `ZoomieMeter`, `ScoreRecord`, collision detection, jump parabolic physics, and combo multipliers. Fully unit tested via JUnit 5.
-  - `app`: Android SurfaceView fixed-timestep render loop (~60 FPS target with letterbox/pillarbox virtual 1920x1080 canvas), custom high-performance 2D Canvas vector rendering (`HerbertRenderer`, `WorldRenderer`, `GameHudRenderer`), dynamic synthesized sound effects (`SoundEffects`), and lifecycle management (`MainActivity`).
-- **Why this stack**: Zero bloated third-party engines, instantaneous compile times (1-3 seconds), predictable memory allocations without GC stalls, zero network permissions, and native compatibility on Galaxy S24 Ultra.
+  - `game-core`: Clean, deterministic game simulation engine with zero Android runtime dependencies. Encapsulates `Herbert`, `LivingRoomWorld`, `Obstacle` & `Pickup` management, `ZoomieMeter`, `ScoreRecord`, collision detection, jump parabolic physics, and combo multipliers. Fully unit tested via JUnit 5.
+  - `app`: Android SurfaceView fixed-timestep render loop (~60 FPS target with fullscreen fill scaling on Samsung's ~19.5:9 aspect ratio), custom high-performance 2D Canvas vector rendering (`HerbertRenderer`, `WorldRenderer`, `GameHudRenderer`), dynamic synthesized sound effects (`SoundEffects`), particle juice system (`ParticleSystem`), and lifecycle management (`MainActivity`).
+- **Why this stack**: Zero bloated third-party engines, instantaneous compile times (sub-second incremental builds), predictable memory allocations without GC stalls, zero network permissions, and native compatibility on Galaxy S24 Ultra.
 
 ## 3. Commands
 
@@ -19,7 +19,7 @@
 ```bash
 export JAVA_HOME=/home/draygen/.local/toolchains/jdk-21.0.12.1+1
 export PATH=$JAVA_HOME/bin:$PATH
-./gradlew :game-core:test
+./gradlew test
 ```
 
 ### Build APK:
@@ -36,43 +36,59 @@ adb -s 192.168.0.71:5555 shell am start -n com.draygen.herbertzoom/.MainActivity
 
 ## 4. What Is Implemented & Verified on Hardware
 - [x] Full standalone Android Gradle repository (`game-core` + `app`).
-- [x] Procedural/vector stylized Herbert rendering featuring:
-  - Striking blue eyes with dilated pupils during Zoomies
-  - Dark ear tips and dark spot markings
-  - Pink nose and mouth
-  - Pink belly exposed during jumps, skids, and flopping
-  - Dynamic animated tail whip and galloping paws
-- [x] Living Room Panic environment with parallax wood floor planks, baseboard, dynamic living room rug, shadows, and props.
-- [x] Obstacles: Slippers, cardboard boxes, couch cushions, table legs, sock piles.
-- [x] Pickups: Golden fish treats, plush toy mice, yarn balls with string trails.
-- [x] Collision detection: Jump clearance over low obstacles, soft obstacle scatter during Maximum Zoomies, near-miss bonus points.
-- [x] Wholesome fail state: Flopped cat on pink belly with wholesome sound cue and game over dialog.
-- [x] Zoomie Meter & Maximum Zoomies (speed boost, visual trails, dilated eyes, 3x score multiplier).
-- [x] Local high score persistence using `SharedPreferences`.
-- [x] Synthesized audio engine for blips, jump boings, near-miss swooshes, zoomie fanfares, and flop thuds (zero external audio file dependencies).
-- [x] Full real-device testing on Galaxy S24 Ultra (`192.168.0.71:5555`):
-  - Verified 60 FPS smooth rendering on 1080x2340 screen.
-  - Verified touch drag steering and swipe-up jumps.
+- [x] **Cozy Layered Living Room Art Pass**:
+  - Warm parquet hardwood floor with scrolling plank joints.
+  - Pastel wallpaper wall with vertical stripes, picture frames (cat portrait), and windows with soft outdoor lighting.
+  - Parallax teal living room area rugs with decorative borders and tassels.
+- [x] **Expressive Herbert Mascot**:
+  - Striking oversized blue eyes with dark blue iris shading, gleams, and dilated pupils during Zoomies.
+  - Distinct black ear tips, black forehead spot, and black back/tail markings matching real Herbert.
+  - Exposed pink belly during jumps, skids, and flopping.
+  - Rosy blush cheeks and cute :3 mouth.
+  - Dynamic animated tail whip with black tip.
+  - Dynamic scaling floor drop shadow that responds to jump height.
+- [x] **Living Room Props & Obstacles**:
+  - Slippers (with fluffy inner lining).
+  - Amazon delivery cardboard boxes with open flaps and doodle markings.
+  - Sofa cushions (teal with button tufts).
+  - Sisal scratching posts with rope grooves and heavy wooden base.
+  - Turned mahogany table legs.
+  - Crinkle cat tunnels with fabric hoops.
+  - Sock piles with colorful stripes.
+  - Couch corner armrests with cushions.
+- [x] **Popping Pickups**:
+  - Golden fish treats with glint highlights and outer glow.
+  - Plush mouse toys with pink ears and spring tails.
+  - Vibrant magenta yarn balls with woven thread loops and trailing string.
+- [x] **Juice & Game Feel**:
+  - Running paw dust puffs and skidding clouds.
+  - Star sparkles on treat/toy collection.
+  - Floating score multipliers (`+100`, `+300`, `CLOSE!`).
+  - Screen shake on crashes and Maximum Zoomies activation.
+  - Floating hearts during flop / max zoomies.
+- [x] **Polished HUD & Fullscreen Viewport**:
+  - Rounded semi-translucent status chips positioned cleanly within safe insets.
+  - Responsive fill-scaling eliminating black letterboxing on ultra-wide screens.
+  - Animated combo multiplier badge (`🔥 2x COMBO!`).
+  - Styled capsule Zoomie Energy meter.
+- [x] **Real S24 Ultra Hardware Verification (`SM-S928U`)**:
+  - Verified 60 FPS silky smooth performance.
+  - Touch drag steering and swipe jumping confirmed responsive.
   - Verified pause/resume backgrounding without crashing or memory leaks.
-  - Verified zero sensitive permissions in AndroidManifest.
 
 ## 5. Assets & Licenses
 Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original programmatic / synthesized vector & PCM sound code under project license (MIT / Proprietary). No third-party copyright assets are loaded.
 
 ## 6. What Claude Should Do Next (Recommended Tasks)
 1. **Herbert Visual Variations / Polish**:
-   - Add box dive animation state when Herbert lands inside an open cardboard box.
-   - Add extra particle dust clouds under paws when hard steering / skidding.
-2. **Additional Living Room Props**:
-   - Cat tunnel interactive sliding.
-   - Harmless knocked-over lightweight objects (e.g. newspaper rolls, catnip toys).
-3. **Audio / Haptic Customization**:
-   - Add simple toggle in title/pause screen for sound and vibration mute.
-4. **Subsequent Environments (Post Milestone 1)**:
+   - Add open cardboard box dive animation state when landing inside open cardboard boxes.
+2. **Audio / Haptic Settings**:
+   - Add a subtle gear / audio toggle icon on Title screen to mute sound/vibration.
+3. **Subsequent Environments (Post Milestone 1)**:
    - Level 2: *Kitchen Tile Drift* (low friction sliding mechanics).
    - Level 3: *Midnight Hallway Sprint*.
 
 ## 7. Decisions Not to Casually Reverse
 - Keep `game-core` 100% decoupled from Android SDK so physics/rules can be tested instantaneously on JVM without emulator/device overhead.
-- Keep the coordinate system virtualized (1920x1080) to preserve crisp aspect ratio scaling on any screen.
+- Keep the coordinate system virtualized (1920x1080) with dynamic aspect ratio fill to preserve crisp rendering on any phone.
 - Maintain wholesome / no-harm policy for Herbert (flops and loaves only).

@@ -3,6 +3,7 @@ package com.draygen.herbertzoom
 import android.content.Context
 import android.content.SharedPreferences
 import android.graphics.Canvas
+import android.graphics.Color
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -11,6 +12,8 @@ import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.draygen.herbertzoom.core.*
+import kotlin.math.sin
+import java.util.Random
 
 class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Runnable {
 
@@ -22,6 +25,8 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private val worldRenderer = WorldRenderer()
     private val hudRenderer = GameHudRenderer()
     private val soundEffects = SoundEffects(context)
+    private val particleManager = ParticleManager()
+    private val rng = Random()
 
     private val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
         val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
@@ -35,7 +40,11 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
     // Touch handling state
     private var touchStartY = 0f
-    private var isDragging = false
+
+    // Screen Shake juice
+    private var shakeTimer = 0f
+    private var shakeMagnitude = 0f
+    private var dustTimer = 0f
 
     init {
         holder.addCallback(this)
@@ -44,29 +53,52 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         // Load persisted high score
         world.score.highScore = prefs.getLong("high_score", 0L)
 
-        // Bind callbacks
-        world.onPickupCollected = {
+        // Bind callbacks for particles & juice
+        world.onPickupCollected = { event ->
             soundEffects.playPickup()
             vibrateSubtle(20)
+
+            // Spawn juicy feedback
+            val colorHex = when (event.pickup.type) {
+                PickupType.TREAT -> "#FFB300"
+                PickupType.TOY_MOUSE -> "#00E5FF"
+                PickupType.YARN_BALL -> "#FF4081"
+            }
+            particleManager.spawnSparkles(event.pickup.x, event.pickup.y, count = 12, colorHex = colorHex)
+            particleManager.spawnFloatingText(event.pickup.x, event.pickup.y - 20f, "+${event.points}", colorHex)
         }
 
-        world.onNearMiss = {
+        world.onNearMiss = { event ->
             soundEffects.playNearMiss()
+            particleManager.spawnSparkles(world.herbert.x, world.herbert.y - 40f, count = 6, colorHex = "#FFEB3B")
+            particleManager.spawnFloatingText(world.herbert.x, world.herbert.y - 50f, "CLOSE!", "#FF9800")
         }
 
         world.onMaxZoomiesStart = {
             soundEffects.playZoomie()
-            vibrateSubtle(70)
+            vibrateSubtle(75)
+            triggerScreenShake(durationSec = 0.4f, magnitude = 12f)
+            particleManager.spawnSparkles(world.herbert.x, world.herbert.y, count = 25, colorHex = "#00E5FF")
+            particleManager.spawnHearts(world.herbert.x, world.herbert.y, count = 6)
         }
 
         world.onFlop = {
             soundEffects.playFlop()
-            vibrateSubtle(40)
+            vibrateSubtle(45)
+            triggerScreenShake(durationSec = 0.35f, magnitude = 16f)
+            particleManager.spawnDust(world.herbert.x, world.herbert.y + 20f, count = 10)
+            particleManager.spawnHearts(world.herbert.x, world.herbert.y - 30f, count = 5)
+
             // Save high score
             if (world.score.currentScore >= world.score.highScore) {
                 prefs.edit().putLong("high_score", world.score.highScore).apply()
             }
         }
+    }
+
+    private fun triggerScreenShake(durationSec: Float, magnitude: Float) {
+        shakeTimer = durationSec
+        shakeMagnitude = magnitude
     }
 
     private fun vibrateSubtle(durationMs: Long) {
@@ -117,6 +149,22 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
 
             // Update game physics & state
             world.update(dt)
+            particleManager.update(dt)
+
+            // Running paw dust & skid effects
+            if (world.state == GamePlayState.PLAYING && !world.herbert.isJumping) {
+                dustTimer += dt
+                val dustRate = if (world.zoomieMeter.isMaxZoomies) 0.06f else 0.12f
+                if (dustTimer >= dustRate) {
+                    dustTimer = 0f
+                    particleManager.spawnDust(world.herbert.x - 45f, world.herbert.y + 35f, count = if (world.zoomieMeter.isMaxZoomies) 3 else 1)
+                }
+            }
+
+            // Screen shake update
+            if (shakeTimer > 0f) {
+                shakeTimer -= dt
+            }
 
             // Draw frame
             drawFrame()
@@ -135,34 +183,47 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     private fun drawFrame() {
         val canvas: Canvas = holder.lockCanvas() ?: return
         try {
-            // Scale and letterbox/pillarbox to 1920x1080 virtual canvas
             val viewWidth = width.toFloat()
             val viewHeight = height.toFloat()
 
-            val scaleX = viewWidth / GameConstants.WORLD_WIDTH
-            val scaleY = viewHeight / GameConstants.WORLD_HEIGHT
-            val scale = minOf(scaleX, scaleY)
-
+            // Calculate Fill Scale to prevent black bars on ultra-wide screens (Galaxy S24 Ultra is ~19.5:9)
+            val scale = maxOf(viewWidth / GameConstants.WORLD_WIDTH, viewHeight / GameConstants.WORLD_HEIGHT)
             val offsetX = (viewWidth - (GameConstants.WORLD_WIDTH * scale)) / 2f
             val offsetY = (viewHeight - (GameConstants.WORLD_HEIGHT * scale)) / 2f
 
-            canvas.drawColor(android.graphics.Color.BLACK)
+            // Clean background fill matching wallpaper color
+            canvas.drawColor(Color.parseColor("#FFF3E0"))
 
             canvas.save()
+
+            // Apply screen shake
+            if (shakeTimer > 0f) {
+                val shakeX = (rng.nextFloat() - 0.5f) * 2f * shakeMagnitude
+                val shakeY = (rng.nextFloat() - 0.5f) * 2f * shakeMagnitude
+                canvas.translate(shakeX, shakeY)
+            }
+
             canvas.translate(offsetX, offsetY)
             canvas.scale(scale, scale)
 
-            // 1. Living room background
+            // Extend room walls/floors left and right to fill entire visible viewport bounds seamlessly
+            val extraMargin = (viewWidth / scale - GameConstants.WORLD_WIDTH) / 2f + 100f
+            val clipRect = canvas.clipBounds
+
+            // 1. Living room cozy layered background
             worldRenderer.renderBackground(canvas, world)
 
             // 2. Obstacles & Pickups
             worldRenderer.renderObstacles(canvas, world.obstacles)
             worldRenderer.renderPickups(canvas, world.pickups, world.herbert.animTimer)
 
-            // 3. Herbert
+            // 3. Particles / Dust / Sparkles
+            particleManager.render(canvas)
+
+            // 4. Herbert
             herbertRenderer.render(canvas, world.herbert)
 
-            // 4. State UI overlays
+            // 5. State UI overlays
             when (world.state) {
                 GamePlayState.TITLE -> hudRenderer.renderTitleScreen(canvas, world)
                 GamePlayState.PLAYING -> hudRenderer.renderHud(canvas, world)
@@ -179,10 +240,10 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Transform screen coords to virtual 1920x1080 coords
+        // Transform screen coords using the responsive fill scale
         val viewWidth = width.toFloat()
         val viewHeight = height.toFloat()
-        val scale = minOf(viewWidth / GameConstants.WORLD_WIDTH, viewHeight / GameConstants.WORLD_HEIGHT)
+        val scale = maxOf(viewWidth / GameConstants.WORLD_WIDTH, viewHeight / GameConstants.WORLD_HEIGHT)
         val offsetX = (viewWidth - (GameConstants.WORLD_WIDTH * scale)) / 2f
         val offsetY = (viewHeight - (GameConstants.WORLD_HEIGHT * scale)) / 2f
 
@@ -192,29 +253,27 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 touchStartY = virtY
-                isDragging = false
 
                 when (world.state) {
                     GamePlayState.TITLE -> {
-                        // Check if touched Play button
                         val w = GameConstants.WORLD_WIDTH
                         val h = GameConstants.WORLD_HEIGHT
-                        if (virtX in (w / 2f - 200f)..(w / 2f + 200f) && virtY in (h / 2f + 50f)..(h / 2f + 220f)) {
+                        if (virtX in (w / 2f - 220f)..(w / 2f + 220f) && virtY in (h / 2f + 60f)..(h / 2f + 240f)) {
                             world.startNewRun()
+                            particleManager.clear()
                             soundEffects.playJump()
                         }
                     }
                     GamePlayState.GAME_OVER -> {
-                        // Check if touched Again button
                         val w = GameConstants.WORLD_WIDTH
                         val h = GameConstants.WORLD_HEIGHT
-                        if (virtX in (w / 2f - 200f)..(w / 2f + 200f) && virtY in (h / 2f + 160f)..(h / 2f + 300f)) {
+                        if (virtX in (w / 2f - 220f)..(w / 2f + 220f) && virtY in (h / 2f + 140f)..(h / 2f + 320f)) {
                             world.startNewRun()
+                            particleManager.clear()
                             soundEffects.playJump()
                         }
                     }
                     GamePlayState.PLAYING -> {
-                        // Steer directly toward touch Y
                         world.herbert.steerTo(virtY / GameConstants.WORLD_HEIGHT)
                     }
                 }
@@ -223,18 +282,15 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
                 if (world.state == GamePlayState.PLAYING) {
                     val dy = virtY - touchStartY
                     if (dy < -60f && !world.herbert.isJumping) {
-                        // Upward swipe = Jump/Pounce!
                         world.herbert.jump()
                         soundEffects.playJump()
                     } else {
-                        // Drag steer
                         world.herbert.steerTo(virtY / GameConstants.WORLD_HEIGHT)
                     }
                 }
             }
             MotionEvent.ACTION_UP -> {
                 if (world.state == GamePlayState.PLAYING) {
-                    // A quick tap also causes jump if not dragged far
                     val dy = virtY - touchStartY
                     if (kotlin.math.abs(dy) < 20f && virtX > GameConstants.WORLD_WIDTH * 0.4f) {
                         world.herbert.jump()

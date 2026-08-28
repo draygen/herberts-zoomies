@@ -11,7 +11,10 @@ enum class ObstacleType {
     CARDBOARD_BOX,
     COUCH_CUSHION,
     TABLE_LEG,
-    SOCK_PILE
+    SOCK_PILE,
+    CAT_TUNNEL,
+    SCRATCHING_POST,
+    COUCH_SECTION
 }
 
 data class Pickup(
@@ -19,7 +22,7 @@ data class Pickup(
     var x: Float,
     var y: Float,
     val type: PickupType,
-    val radius: Float = 35f,
+    val radius: Float = 48f, // larger, easier to see and hit
     var collected: Boolean = false
 )
 

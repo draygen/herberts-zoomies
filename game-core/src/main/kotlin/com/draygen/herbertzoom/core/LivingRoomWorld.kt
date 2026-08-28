@@ -9,7 +9,7 @@ enum class GamePlayState {
 }
 
 data class NearMissEvent(val obstacle: Obstacle)
-data class PickupEvent(val pickup: Pickup)
+data class PickupEvent(val pickup: Pickup, val points: Long)
 data class FlopEvent(val obstacle: Obstacle)
 data class MaxZoomiesActivatedEvent(val duration: Float)
 
@@ -26,10 +26,10 @@ class LivingRoomWorld(
 
     private var nextEntityId = 1L
     private var spawnTimer = 0f
-    private var spawnInterval = 1.2f
+    private var spawnInterval = 1.1f
     private var distanceMeterAccumulator = 0f
 
-    // Callbacks for sound / haptics
+    // Callbacks for sound / haptics / particles
     var onPickupCollected: ((PickupEvent) -> Unit)? = null
     var onNearMiss: ((NearMissEvent) -> Unit)? = null
     var onMaxZoomiesStart: ((MaxZoomiesActivatedEvent) -> Unit)? = null
@@ -42,7 +42,7 @@ class LivingRoomWorld(
         obstacles.clear()
         pickups.clear()
         spawnTimer = 0f
-        spawnInterval = 1.2f
+        spawnInterval = 1.1f
         distanceMeterAccumulator = 0f
         state = GamePlayState.PLAYING
     }
@@ -79,7 +79,7 @@ class LivingRoomWorld(
         while (iterObs.hasNext()) {
             val obs = iterObs.next()
             obs.x -= stepDistance
-            if (obs.x + obs.width < -100f) {
+            if (obs.x + obs.width < -150f) {
                 iterObs.remove()
             }
         }
@@ -88,14 +88,14 @@ class LivingRoomWorld(
         while (iterPick.hasNext()) {
             val pick = iterPick.next()
             pick.x -= stepDistance
-            if (pick.x + pick.radius < -100f) {
+            if (pick.x + pick.radius < -150f) {
                 iterPick.remove()
             }
         }
 
         // Spawning
         spawnTimer += dt
-        val currentSpawnRate = if (zoomieMeter.isMaxZoomies) 0.6f else (spawnInterval - (herbert.currentSpeed / 4000f)).coerceAtLeast(0.55f)
+        val currentSpawnRate = if (zoomieMeter.isMaxZoomies) 0.55f else (spawnInterval - (herbert.currentSpeed / 4500f)).coerceAtLeast(0.5f)
         if (spawnTimer >= currentSpawnRate) {
             spawnTimer = 0f
             spawnWave()
@@ -106,24 +106,30 @@ class LivingRoomWorld(
     }
 
     private fun spawnWave() {
-        val spawnX = GameConstants.WORLD_WIDTH + 150f
-        val laneY = (0.2f + rng.nextFloat() * 0.65f) * GameConstants.WORLD_HEIGHT
+        val spawnX = GameConstants.WORLD_WIDTH + 180f
+        val laneY = (0.24f + rng.nextFloat() * 0.60f) * GameConstants.WORLD_HEIGHT
 
-        // 60% chance to spawn obstacle, 70% chance to spawn pickup (often alongside)
-        if (rng.nextFloat() < 0.7f) {
-            val type = when (rng.nextInt(5)) {
+        // Spawn obstacles
+        if (rng.nextFloat() < 0.72f) {
+            val type = when (rng.nextInt(8)) {
                 0 -> ObstacleType.SLIPPER
                 1 -> ObstacleType.SOCK_PILE
                 2 -> ObstacleType.CARDBOARD_BOX
                 3 -> ObstacleType.COUCH_CUSHION
-                else -> ObstacleType.TABLE_LEG
+                4 -> ObstacleType.TABLE_LEG
+                5 -> ObstacleType.CAT_TUNNEL
+                6 -> ObstacleType.SCRATCHING_POST
+                else -> ObstacleType.COUCH_SECTION
             }
             val (w, h, canJump, isSoft) = when (type) {
-                ObstacleType.SLIPPER -> Quad(90f, 60f, true, true)
-                ObstacleType.SOCK_PILE -> Quad(80f, 50f, true, true)
-                ObstacleType.CARDBOARD_BOX -> Quad(120f, 100f, false, false)
-                ObstacleType.COUCH_CUSHION -> Quad(150f, 80f, true, true)
-                ObstacleType.TABLE_LEG -> Quad(60f, 180f, false, false)
+                ObstacleType.SLIPPER -> Quad(100f, 65f, true, true)
+                ObstacleType.SOCK_PILE -> Quad(90f, 60f, true, true)
+                ObstacleType.CARDBOARD_BOX -> Quad(140f, 110f, false, false)
+                ObstacleType.COUCH_CUSHION -> Quad(160f, 90f, true, true)
+                ObstacleType.TABLE_LEG -> Quad(65f, 190f, false, false)
+                ObstacleType.CAT_TUNNEL -> Quad(180f, 95f, true, true)
+                ObstacleType.SCRATCHING_POST -> Quad(80f, 170f, false, false)
+                ObstacleType.COUCH_SECTION -> Quad(190f, 130f, false, false)
             }
             obstacles.add(
                 Obstacle(
@@ -139,18 +145,18 @@ class LivingRoomWorld(
             )
         }
 
-        // Spawn pickup (offset or in open space)
-        if (rng.nextFloat() < 0.75f) {
+        // Spawn pickups
+        if (rng.nextFloat() < 0.8f) {
             val pickupType = when (rng.nextInt(3)) {
                 0 -> PickupType.TREAT
                 1 -> PickupType.TOY_MOUSE
                 else -> PickupType.YARN_BALL
             }
-            val pickupY = (0.2f + rng.nextFloat() * 0.65f) * GameConstants.WORLD_HEIGHT
+            val pickupY = (0.24f + rng.nextFloat() * 0.60f) * GameConstants.WORLD_HEIGHT
             pickups.add(
                 Pickup(
                     id = nextEntityId++,
-                    x = spawnX + (rng.nextFloat() * 100f),
+                    x = spawnX + (rng.nextFloat() * 120f),
                     y = pickupY,
                     type = pickupType
                 )
@@ -183,6 +189,7 @@ class LivingRoomWorld(
                     PickupType.TOY_MOUSE -> Pair(GameConstants.POINTS_PER_TOY, GameConstants.ZOOMIE_PER_TOY)
                     PickupType.YARN_BALL -> Pair(GameConstants.POINTS_PER_TOY, GameConstants.ZOOMIE_PER_TOY)
                 }
+                val totalPoints = (pts * score.comboMultiplier * (if (zoomieMeter.isMaxZoomies) 3 else 1)).toLong()
                 score.addPoints(pts.toLong(), zoomieMeter.isMaxZoomies)
                 if (pick.type == PickupType.TREAT) score.treatsCollected++ else score.toysCollected++
                 score.incrementCombo()
@@ -191,7 +198,7 @@ class LivingRoomWorld(
                 if (activated) {
                     onMaxZoomiesStart?.invoke(MaxZoomiesActivatedEvent(GameConstants.MAX_ZOOMIE_DURATION_SEC))
                 }
-                onPickupCollected?.invoke(PickupEvent(pick))
+                onPickupCollected?.invoke(PickupEvent(pick, totalPoints))
                 pickIter.remove()
             }
         }
@@ -207,7 +214,7 @@ class LivingRoomWorld(
             val collidesY = dy < (obs.height / 2f + hRadius * 0.7f)
 
             // Near miss check (passed close without hitting)
-            if (!obs.nearMissTriggered && !collidesX && hx > obs.right && hx < obs.right + 60f && dy < (obs.height / 2f + 90f)) {
+            if (!obs.nearMissTriggered && !collidesX && hx > obs.right && hx < obs.right + 70f && dy < (obs.height / 2f + 95f)) {
                 obs.nearMissTriggered = true
                 score.nearMissCount++
                 score.addPoints(GameConstants.POINTS_PER_NEAR_MISS.toLong(), zoomieMeter.isMaxZoomies)
@@ -221,7 +228,7 @@ class LivingRoomWorld(
 
             if (collidesX && collidesY) {
                 // If Herbert is high enough in a jump and obstacle is jumpable
-                if (obs.canJumpOver && isJumping && jumpH > 40f) {
+                if (obs.canJumpOver && isJumping && jumpH > 35f) {
                     // Safe jump!
                     if (!obs.nearMissTriggered) {
                         obs.nearMissTriggered = true
