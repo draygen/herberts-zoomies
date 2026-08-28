@@ -8,11 +8,12 @@ enum class AnimationState {
     SKIDDING,
     STUMBLING,
     FLOPPED,
-    BOX_DIVE
+    BOX_DIVE,
+    SCRATCHING
 }
 
 data class Herbert(
-    var x: Float = 300f,
+    var x: Float = GameConstants.HERBERT_HOME_X,
     var y: Float = GameConstants.WORLD_HEIGHT / 2f,
     var targetY: Float = GameConstants.WORLD_HEIGHT / 2f,
     var jumpProgress: Float = 0f, // 0..1
@@ -24,9 +25,25 @@ data class Herbert(
     var eyeWideness: Float = 1.0f,
     var skidAngle: Float = 0f,
     var invulnerabilityTimer: Float = 0f,
-    var lives: Int = 1 // 1 life buffer for forgiving stumbles
+    var lives: Int = 1, // 1 life buffer for forgiving stumbles
+    // "The Spot" - lapping around a worn patch of floorboard, scratching at it
+    var scratchTimer: Float = 0f,
+    var scratchAngle: Float = 0f,
+    var scratchCenterX: Float = 0f,
+    var scratchCenterY: Float = 0f
 ) {
-    val isInvulnerable: Boolean get() = invulnerabilityTimer > 0f
+    /** Collision immunity from any source (stumble recovery, or busy scratching). */
+    val isInvulnerable: Boolean get() = invulnerabilityTimer > 0f || isScratching
+
+    /** Only the post-stumble recovery blinks Herbert; scratching must not. */
+    val isStumbleInvulnerable: Boolean get() = invulnerabilityTimer > 0f
+
+    val isScratching: Boolean get() = scratchTimer > 0f
+
+    /** 0..1 through the current scratch, for renderers and particle pacing. */
+    val scratchProgress: Float
+        get() = if (!isScratching) 0f
+                else (1f - scratchTimer / GameConstants.SCRATCH_DURATION_SEC).coerceIn(0f, 1f)
 
     val jumpHeight: Float
         get() {
@@ -35,7 +52,24 @@ data class Herbert(
             return 4f * GameConstants.JUMP_MAX_HEIGHT * jumpProgress * (1f - jumpProgress)
         }
 
+    /**
+     * Herbert spots the patch and commits. He abandons his lane, orbits the
+     * patch and goes at it with both front paws.
+     */
+    fun beginScratch(centerX: Float, centerY: Float) {
+        if (isScratching || animState == AnimationState.FLOPPED) return
+        scratchTimer = GameConstants.SCRATCH_DURATION_SEC
+        // Start the lap on the near side so he visibly circles round the patch
+        scratchAngle = kotlin.math.PI.toFloat()
+        scratchCenterX = centerX
+        scratchCenterY = centerY
+        isJumping = false
+        jumpProgress = 0f
+        animState = AnimationState.SCRATCHING
+    }
+
     fun jump() {
+        if (isScratching) return
         if (!isJumping && animState != AnimationState.FLOPPED) {
             isJumping = true
             jumpProgress = 0f
@@ -43,6 +77,7 @@ data class Herbert(
     }
 
     fun steerTo(normalizedY: Float) {
+        if (isScratching) return // he is busy; steering resumes when he's done
         val clamped = normalizedY.coerceIn(0.18f, 0.88f)
         targetY = clamped * GameConstants.WORLD_HEIGHT
     }
@@ -59,6 +94,27 @@ data class Herbert(
 
         animTimer += dt
         isMaxZoomies = maxZoomiesActive
+
+        // The Spot takes priority over everything except flopping: while Herbert
+        // is scratching he orbits the patch instead of running his normal lane.
+        if (isScratching) {
+            scratchTimer -= dt
+            scratchAngle += GameConstants.SCRATCH_ORBIT_SPEED * dt
+            x = scratchCenterX + kotlin.math.cos(scratchAngle) * GameConstants.SCRATCH_ORBIT_RADIUS_X
+            y = scratchCenterY + kotlin.math.sin(scratchAngle) * GameConstants.SCRATCH_ORBIT_RADIUS_Y
+            targetY = y
+            skidAngle = 0f
+            animState = AnimationState.SCRATCHING
+            // Delighted, slightly unhinged eyes while he works
+            eyeWideness = if (maxZoomiesActive) 1.8f else 1.35f
+            if (scratchTimer <= 0f) {
+                scratchTimer = 0f
+                x = GameConstants.HERBERT_HOME_X
+                targetY = y
+                animState = AnimationState.RUNNING
+            }
+            return
+        }
 
         if (invulnerabilityTimer > 0f) {
             invulnerabilityTimer -= dt
@@ -109,10 +165,11 @@ data class Herbert(
     fun flop() {
         animState = AnimationState.FLOPPED
         isJumping = false
+        scratchTimer = 0f
     }
 
     fun reset() {
-        x = 300f
+        x = GameConstants.HERBERT_HOME_X
         y = GameConstants.WORLD_HEIGHT / 2f
         targetY = y
         jumpProgress = 0f
@@ -125,5 +182,9 @@ data class Herbert(
         skidAngle = 0f
         invulnerabilityTimer = 0f
         lives = 1
+        scratchTimer = 0f
+        scratchAngle = 0f
+        scratchCenterX = 0f
+        scratchCenterY = 0f
     }
 }

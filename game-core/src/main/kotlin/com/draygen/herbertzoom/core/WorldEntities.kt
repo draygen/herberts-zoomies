@@ -29,6 +29,29 @@ data class Pickup(
     var collected: Boolean = false
 )
 
+/**
+ * A small discoloured, worn patch of floorboard. It is scenery, not a hazard:
+ * Herbert simply cannot walk past one without stopping to lap around it and
+ * scratch at it with both front paws.
+ */
+data class ScratchSpot(
+    val id: Long,
+    var x: Float,
+    var y: Float,
+    val radiusX: Float = GameConstants.SCRATCH_SPOT_RADIUS_X,
+    val radiusY: Float = GameConstants.SCRATCH_SPOT_RADIUS_Y,
+    var used: Boolean = false,
+    /** 0..1 while Herbert works on it - drives how scuffed the patch looks. */
+    var scratchProgress: Float = 0f
+) {
+    /** Generous elliptical trigger area; Herbert is easily tempted. */
+    fun contains(px: Float, py: Float, pad: Float = 0f): Boolean {
+        val nx = (px - x) / (radiusX + pad)
+        val ny = (py - y) / (radiusY + pad)
+        return nx * nx + ny * ny <= 1f
+    }
+}
+
 data class Obstacle(
     val id: Long,
     var x: Float,

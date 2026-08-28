@@ -34,6 +34,7 @@ class SoundEffects(context: Context) {
             soundMap["jump"] = loadPcmSound(generateSlideTonePcm(350.0, 700.0, 0.15, 0.35)) // Boing
             soundMap["zoomie"] = loadPcmSound(generateChordPcm(listOf(523.25, 659.25, 783.99, 1046.50), 0.45, 0.4)) // Happy fanfare
             soundMap["flop"] = loadPcmSound(generateSlideTonePcm(400.0, 180.0, 0.25, 0.3)) // Wholesome thud/slide
+            soundMap["scratch"] = loadPcmSound(generateScratchPcm(0.75, 0.32)) // Rhythmic scritch-scritch on floorboard
             isLoaded = true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -54,6 +55,7 @@ class SoundEffects(context: Context) {
     fun playNearMiss() = play("nearmiss", 0.6f)
     fun playZoomie() = play("zoomie", 0.85f)
     fun playFlop() = play("flop", 0.75f)
+    fun playScratch() = play("scratch", 0.7f)
 
     private fun play(key: String, volume: Float) {
         val id = soundMap[key] ?: return
@@ -91,6 +93,44 @@ class SoundEffects(context: Context) {
                 phase += 2.0 * PI * currentFreq / sampleRate
                 val envelope = (1.0 - progress)
                 val sample = sin(phase) * envelope * volume
+                pcm[i] = (sample * 32767.0).toInt().coerceIn(-32768, 32767).toShort()
+            }
+            return createWavFile(sampleRate, pcm)
+        }
+
+        /**
+         * Rhythmic "scritch scritch scritch" - filtered noise pulsed at the same
+         * rate Herbert's paws windmill, so the sound lines up with the animation.
+         */
+        private fun generateScratchPcm(durationSec: Double, volume: Double): ByteArray {
+            val sampleRate = 44100
+            val numSamples = (durationSec * sampleRate).toInt()
+            val pcm = ShortArray(numSamples)
+
+            var seed = 0x5EED_1234L // deterministic noise, no allocation churn
+            var lowpass = 0.0
+            val rakesPerSec = 27.0 / (2.0 * PI) * 2.0 // matches the paw circle rate
+
+            for (i in 0 until numSamples) {
+                val t = i.toDouble() / sampleRate
+                val progress = i.toDouble() / numSamples
+
+                // xorshift noise in -1..1
+                seed = seed xor (seed shl 13)
+                seed = seed xor (seed ushr 7)
+                seed = seed xor (seed shl 17)
+                val white = ((seed and 0xFFFF).toDouble() / 32768.0) - 1.0
+
+                // Band-limit it so it reads as wood, not hiss
+                lowpass += (white - lowpass) * 0.35
+                val body = lowpass - white * 0.25
+
+                // Pulse envelope: sharp rake, quick decay, repeated
+                val rakePhase = (t * rakesPerSec) % 1.0
+                val rake = Math.exp(-rakePhase * 7.0)
+                val overall = 1.0 - progress * 0.55
+
+                val sample = body * rake * overall * volume
                 pcm[i] = (sample * 32767.0).toInt().coerceIn(-32768, 32767).toShort()
             }
             return createWavFile(sampleRate, pcm)

@@ -82,6 +82,14 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             particleManager.spawnHearts(world.herbert.x, world.herbert.y, count = 6)
         }
 
+        world.onScratchSpot = { event ->
+            soundEffects.playScratch()
+            vibrateSubtle(35)
+            particleManager.spawnFloatingText(event.spot.x, event.spot.y - 90f, "SCRITCH SCRITCH!", "#8D6E63")
+            particleManager.spawnFloatingText(event.spot.x, event.spot.y - 150f, "+${event.points}", "#FFB300")
+            particleManager.spawnSparkles(event.spot.x, event.spot.y, count = 10, colorHex = "#D7B98A")
+        }
+
         world.onStumble = { event ->
             soundEffects.playNearMiss()
             vibrateSubtle(30)
@@ -121,7 +129,14 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         } catch (_: Exception) {}
     }
 
+    /**
+     * Idempotent on purpose: both Activity.onResume() and surfaceCreated() call
+     * this, and on a cold start they both fire. Starting a second thread would
+     * leave two game loops mutating and iterating the same entity lists, which
+     * shows up as a ConcurrentModificationException in the renderer.
+     */
     fun resume() {
+        if (isRunning && gameThread?.isAlive == true) return
         isRunning = true
         gameThread = Thread(this, "GameLoopThread").apply { start() }
     }
@@ -131,8 +146,9 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
         try {
             gameThread?.join()
         } catch (e: InterruptedException) {
-            e.printStackTrace()
+            Thread.currentThread().interrupt()
         }
+        gameThread = null
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -163,10 +179,22 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // Running paw dust & skid effects
             if (world.state == GamePlayState.PLAYING && !world.herbert.isJumping) {
                 dustTimer += dt
-                val dustRate = if (world.zoomieMeter.isMaxZoomies) 0.06f else 0.12f
-                if (dustTimer >= dustRate) {
-                    dustTimer = 0f
-                    particleManager.spawnDust(world.herbert.x - 45f, world.herbert.y + 35f, count = if (world.zoomieMeter.isMaxZoomies) 3 else 1)
+                if (world.herbert.isScratching) {
+                    // Wood shavings flicking off the patch as he rakes at it
+                    if (dustTimer >= 0.05f) {
+                        dustTimer = 0f
+                        particleManager.spawnDust(world.herbert.scratchCenterX, world.herbert.scratchCenterY, count = 2)
+                        particleManager.spawnSparkles(
+                            world.herbert.scratchCenterX, world.herbert.scratchCenterY,
+                            count = 2, colorHex = "#C9A227"
+                        )
+                    }
+                } else {
+                    val dustRate = if (world.zoomieMeter.isMaxZoomies) 0.06f else 0.12f
+                    if (dustTimer >= dustRate) {
+                        dustTimer = 0f
+                        particleManager.spawnDust(world.herbert.x - 45f, world.herbert.y + 35f, count = if (world.zoomieMeter.isMaxZoomies) 3 else 1)
+                    }
                 }
             }
 
@@ -222,7 +250,8 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             // 1. Living room cozy layered background
             worldRenderer.renderBackground(canvas, world)
 
-            // 2. Obstacles & Pickups
+            // 2. Floor decals (The Spot), then obstacles & pickups on top
+            worldRenderer.renderScratchSpots(canvas, world.scratchSpots, world.herbert.animTimer)
             worldRenderer.renderObstacles(canvas, world.obstacles)
             worldRenderer.renderPickups(canvas, world.pickups, world.herbert.animTimer)
 

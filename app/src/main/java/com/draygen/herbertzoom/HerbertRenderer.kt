@@ -47,6 +47,12 @@ class HerbertRenderer {
         strokeWidth = 8f
         strokeCap = Paint.Cap.ROUND
     }
+    private val scratchArcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(150, 120, 88, 56)
+        style = Paint.Style.STROKE
+        strokeWidth = 4.5f
+        strokeCap = Paint.Cap.ROUND
+    }
     private val zoomieAuraPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(85, 0, 229, 255)
         style = Paint.Style.FILL
@@ -61,7 +67,7 @@ class HerbertRenderer {
         val groundY = herbert.y
         val renderY = groundY - herbert.jumpHeight
 
-        if (herbert.isInvulnerable && (herbert.animTimer * 18f).toInt() % 2 == 0) {
+        if (herbert.isStumbleInvulnerable && (herbert.animTimer * 18f).toInt() % 2 == 0) {
             return
         }
 
@@ -98,6 +104,9 @@ class HerbertRenderer {
         canvas.translate(herbert.x, renderY)
 
         val legCycle = sin(herbert.animTimer * 24f).toFloat()
+        val isScratching = herbert.animState == AnimationState.SCRATCHING
+        // Both front paws windmill in tight circles, half a turn out of phase
+        val scratchPhase = herbert.animTimer * 27f
         val bounceY = if (herbert.animState == AnimationState.RUNNING || herbert.animState == AnimationState.MAX_ZOOM_RUNNING) {
             kotlin.math.abs(sin(herbert.animTimer * 22f)).toFloat() * 10f
         } else 0f
@@ -120,6 +129,14 @@ class HerbertRenderer {
                 canvas.rotate(herbert.skidAngle * 1.2f)
                 canvas.scale(0.95f, 1.05f)
             }
+            AnimationState.SCRATCHING -> {
+                // Front end down, bum up, leaning into the lap around the patch
+                val lean = sin(herbert.scratchAngle).toFloat() * -11f
+                val judder = sin(herbert.animTimer * 27f).toFloat() * 2.5f
+                canvas.rotate(9f + lean + judder)
+                canvas.translate(0f, 8f)
+                canvas.scale(1.03f, 0.95f)
+            }
             else -> {
                 canvas.translate(0f, -bounceY)
                 val stretch = 1.0f + (bounceY / 75f)
@@ -128,7 +145,8 @@ class HerbertRenderer {
         }
 
         // --- LAYER 1: Dark Seal Point Tail ---
-        val tailWag = sin(herbert.animTimer * 20f).toFloat() * 32f
+        val tailWag = sin(herbert.animTimer * (if (isScratching) 30f else 20f)).toFloat() *
+            (if (isScratching) 52f else 32f)
         val tailPath = Path().apply {
             moveTo(-55f, 8f)
             quadTo(-90f, -32f + tailWag, -112f, -18f + (tailWag * 1.4f))
@@ -144,12 +162,14 @@ class HerbertRenderer {
 
         // --- LAYER 2: Back Paws (Pure White "Mittens") ---
         if (herbert.animState != AnimationState.FLOPPED) {
-            val backPawX = -38f + legCycle * 22f
-            val frontPawX = 42f - legCycle * 25f
-            val pawY = 36f
+            // Back paws stay planted while he scratches; they only brace him.
+            val backPawX = if (isScratching) -40f else -38f + legCycle * 22f
+            val frontPawX = if (isScratching) 30f + cos(scratchPhase + 1.4f).toFloat() * 10f
+                            else 42f - legCycle * 25f
+            val pawY = if (isScratching) 38f + sin(scratchPhase + 1.4f).toFloat() * 7f else 36f
 
-            canvas.drawOval(backPawX - 16f, pawY - 10f, backPawX + 16f, pawY + 12f, whiteFurPaint)
-            canvas.drawOval(backPawX - 16f, pawY - 10f, backPawX + 16f, pawY + 12f, outlinePaint)
+            canvas.drawOval(backPawX - 16f, 36f - 10f, backPawX + 16f, 36f + 12f, whiteFurPaint)
+            canvas.drawOval(backPawX - 16f, 36f - 10f, backPawX + 16f, 36f + 12f, outlinePaint)
 
             canvas.drawOval(frontPawX - 16f, pawY - 10f, frontPawX + 16f, pawY + 12f, whiteFurPaint)
             canvas.drawOval(frontPawX - 16f, pawY - 10f, frontPawX + 16f, pawY + 12f, outlinePaint)
@@ -170,20 +190,30 @@ class HerbertRenderer {
 
         // --- LAYER 5: Front Paws with Pink Beans ---
         if (herbert.animState != AnimationState.FLOPPED) {
-            val backPawX = -38f - legCycle * 18f
-            val frontPawX = 42f + legCycle * 20f
-            val pawY = 38f
+            val backPawX = if (isScratching) -34f else -38f - legCycle * 18f
+            val backPawY = if (isScratching) 40f else 38f
 
-            canvas.drawOval(backPawX - 16f, pawY - 10f, backPawX + 16f, pawY + 12f, whiteFurPaint)
-            canvas.drawOval(backPawX - 16f, pawY - 10f, backPawX + 16f, pawY + 12f, outlinePaint)
+            // The whole point of the bit: the leading front paw rakes in a circle
+            val frontPawX = if (isScratching) 50f + cos(scratchPhase).toFloat() * 19f
+                            else 42f + legCycle * 20f
+            val frontPawY = if (isScratching) 30f + sin(scratchPhase).toFloat() * 15f else 38f
 
-            canvas.drawOval(frontPawX - 16f, pawY - 10f, frontPawX + 16f, pawY + 12f, whiteFurPaint)
-            canvas.drawOval(frontPawX - 16f, pawY - 10f, frontPawX + 16f, pawY + 12f, outlinePaint)
+            canvas.drawOval(backPawX - 16f, backPawY - 10f, backPawX + 16f, backPawY + 12f, whiteFurPaint)
+            canvas.drawOval(backPawX - 16f, backPawY - 10f, backPawX + 16f, backPawY + 12f, outlinePaint)
+
+            // Faint circular motion trail so the raking reads at speed
+            if (isScratching) {
+                canvas.drawArc(RectF(50f - 19f, 30f - 15f, 50f + 19f, 30f + 15f),
+                    Math.toDegrees(scratchPhase.toDouble()).toFloat() + 40f, 190f, false, scratchArcPaint)
+            }
+
+            canvas.drawOval(frontPawX - 16f, frontPawY - 10f, frontPawX + 16f, frontPawY + 12f, whiteFurPaint)
+            canvas.drawOval(frontPawX - 16f, frontPawY - 10f, frontPawX + 16f, frontPawY + 12f, outlinePaint)
 
             // Pink Paw Beans
-            canvas.drawCircle(frontPawX, pawY + 4f, 4.5f, pinkBeansPaint)
-            canvas.drawCircle(frontPawX - 6f, pawY - 1f, 2.5f, pinkBeansPaint)
-            canvas.drawCircle(frontPawX + 6f, pawY - 1f, 2.5f, pinkBeansPaint)
+            canvas.drawCircle(frontPawX, frontPawY + 4f, 4.5f, pinkBeansPaint)
+            canvas.drawCircle(frontPawX - 6f, frontPawY - 1f, 2.5f, pinkBeansPaint)
+            canvas.drawCircle(frontPawX + 6f, frontPawY - 1f, 2.5f, pinkBeansPaint)
         }
 
         // --- LAYER 6: Tall Seal Point Ears ---

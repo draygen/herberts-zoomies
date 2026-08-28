@@ -13,6 +13,7 @@ data class PickupEvent(val pickup: Pickup, val points: Long)
 data class StumbleEvent(val obstacle: Obstacle)
 data class FlopEvent(val obstacle: Obstacle)
 data class MaxZoomiesActivatedEvent(val duration: Float)
+data class ScratchSpotEvent(val spot: ScratchSpot, val points: Long)
 
 class LivingRoomWorld(
     private val rng: Random = Random()
@@ -24,12 +25,15 @@ class LivingRoomWorld(
 
     val obstacles = mutableListOf<Obstacle>()
     val pickups = mutableListOf<Pickup>()
+    val scratchSpots = mutableListOf<ScratchSpot>()
 
     private var nextEntityId = 1L
     private var spawnTimer = 0f
     private var spawnInterval = 1.6f // Generous spacing between waves
     private var distanceMeterAccumulator = 0f
     private var runTime = 0f
+    private var lastScratchSpotTime = -999f
+    private var activeScratchSpotId: Long? = null
 
     // Callbacks for sound / haptics / particles
     var onPickupCollected: ((PickupEvent) -> Unit)? = null
@@ -37,6 +41,7 @@ class LivingRoomWorld(
     var onMaxZoomiesStart: ((MaxZoomiesActivatedEvent) -> Unit)? = null
     var onStumble: ((StumbleEvent) -> Unit)? = null
     var onFlop: ((FlopEvent) -> Unit)? = null
+    var onScratchSpot: ((ScratchSpotEvent) -> Unit)? = null
 
     fun startNewRun() {
         herbert.reset()
@@ -44,10 +49,13 @@ class LivingRoomWorld(
         score.reset()
         obstacles.clear()
         pickups.clear()
+        scratchSpots.clear()
         spawnTimer = 0f
         spawnInterval = 1.6f
         distanceMeterAccumulator = 0f
         runTime = 0f
+        lastScratchSpotTime = -999f
+        activeScratchSpotId = null
         state = GamePlayState.PLAYING
     }
 
@@ -70,8 +78,12 @@ class LivingRoomWorld(
             herbert.currentSpeed
         }
 
+        // While Herbert is lapping The Spot the room almost stops, so the moment
+        // reads as a deliberate detour rather than obstacles sliding into him.
+        val scrollScale = if (herbert.isScratching) GameConstants.SCRATCH_WORLD_SLOWDOWN else 1f
+
         // Advance world distance
-        val stepDistance = effectiveSpeed * dt
+        val stepDistance = effectiveSpeed * dt * scrollScale
         score.distanceRun += stepDistance
         distanceMeterAccumulator += stepDistance
         if (distanceMeterAccumulator >= 100f) {
@@ -98,6 +110,27 @@ class LivingRoomWorld(
             pick.x -= stepDistance
             if (pick.x + pick.radius < -200f) {
                 iterPick.remove()
+            }
+        }
+
+        val iterSpot = scratchSpots.iterator()
+        while (iterSpot.hasNext()) {
+            val spot = iterSpot.next()
+            spot.x -= stepDistance
+            if (spot.id == activeScratchSpotId) {
+                if (herbert.isScratching) {
+                    // Herbert orbits the patch, so his centre must track it as it drifts
+                    herbert.scratchCenterX = spot.x
+                    herbert.scratchCenterY = spot.y
+                    spot.scratchProgress = herbert.scratchProgress
+                } else {
+                    // Finished: leave the patch fully scuffed up
+                    spot.scratchProgress = 1f
+                    activeScratchSpotId = null
+                }
+            }
+            if (spot.x + spot.radiusX < -200f) {
+                iterSpot.remove()
             }
         }
 
@@ -173,6 +206,24 @@ class LivingRoomWorld(
             )
         }
 
+        // The Spot: rare, never crowded, and never while he's already at one.
+        val canSpawnSpot = runTime > 10f &&
+            (runTime - lastScratchSpotTime) > GameConstants.SCRATCH_SPOT_MIN_INTERVAL_SEC &&
+            scratchSpots.none { !it.used } &&
+            !herbert.isScratching
+        if (canSpawnSpot && rng.nextFloat() < 0.22f) {
+            lastScratchSpotTime = runTime
+            // Keep it clear of the very top/bottom so the orbit stays on screen
+            val spotY = (0.34f + rng.nextFloat() * 0.42f) * GameConstants.WORLD_HEIGHT
+            scratchSpots.add(
+                ScratchSpot(
+                    id = nextEntityId++,
+                    x = spawnX + 260f,
+                    y = spotY
+                )
+            )
+        }
+
         // Pickups spawn frequently in rewarding lines
         val pickupCount = if (rng.nextFloat() < 0.4f) 2 else 1
         for (i in 0 until pickupCount) {
@@ -229,6 +280,31 @@ class LivingRoomWorld(
                 }
                 onPickupCollected?.invoke(PickupEvent(pick, totalPoints))
                 pickIter.remove()
+            }
+        }
+
+        // The Spot - Herbert cannot resist a worn patch of floorboard
+        if (!herbert.isScratching && !isJumping && herbert.animState != AnimationState.FLOPPED) {
+            for (spot in scratchSpots) {
+                if (spot.used) continue
+                if (!spot.contains(hx, hy, pad = hRadius)) continue
+
+                spot.used = true
+                activeScratchSpotId = spot.id
+                herbert.beginScratch(spot.x, spot.y)
+
+                val points = GameConstants.POINTS_PER_SCRATCH_SPOT
+                val totalPoints = (points * score.comboMultiplier *
+                    (if (zoomieMeter.isMaxZoomies) 3 else 1)).toLong()
+                score.addPoints(points.toLong(), zoomieMeter.isMaxZoomies)
+                score.incrementCombo()
+
+                val activated = zoomieMeter.addEnergy(GameConstants.ZOOMIE_PER_SCRATCH_SPOT)
+                if (activated) {
+                    onMaxZoomiesStart?.invoke(MaxZoomiesActivatedEvent(GameConstants.MAX_ZOOMIE_DURATION_SEC))
+                }
+                onScratchSpot?.invoke(ScratchSpotEvent(spot, totalPoints))
+                break
             }
         }
 

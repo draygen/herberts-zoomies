@@ -33,6 +33,23 @@ class WorldRenderer {
     private val rugBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#E0F2F1"); strokeWidth = 6f; style = Paint.Style.STROKE }
     private val rugTasselPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#FFF9C4"); strokeWidth = 4f; style = Paint.Style.STROKE }
 
+    // "The Spot" - a worn, discoloured patch of floorboard Herbert obsesses over
+    private val spotDiscolourPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#C2A47A"); style = Paint.Style.FILL }
+    private val spotWornCorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#A98A5E"); style = Paint.Style.FILL }
+    private val spotRawWoodPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#EADFC4"); style = Paint.Style.FILL }
+    private val spotClawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#8A6A45"); style = Paint.Style.STROKE
+        strokeWidth = 5f; strokeCap = Paint.Cap.ROUND
+    }
+    private val spotFreshClawPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#F2E8CF"); style = Paint.Style.STROKE
+        strokeWidth = 4f; strokeCap = Paint.Cap.ROUND
+    }
+    private val spotEdgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(70, 90, 62, 40); style = Paint.Style.STROKE; strokeWidth = 5f
+    }
+    private val spotTemptGlowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(46, 255, 214, 140); style = Paint.Style.FILL }
+
     // Obstacle Paints
     private val boxBrownPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#D7A15C"); style = Paint.Style.FILL }
     private val boxDarkBrownPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#B8860B"); style = Paint.Style.FILL }
@@ -151,6 +168,55 @@ class WorldRenderer {
             for (fy in 370..900 step 22) {
                 canvas.drawLine(rx - 14f, fy.toFloat(), rx, fy.toFloat(), rugTasselPaint)
                 canvas.drawLine(rx + 750f, fy.toFloat(), rx + 764f, fy.toFloat(), rugTasselPaint)
+            }
+        }
+    }
+
+    /**
+     * Floor decal, drawn under everything else: the discoloured patch of
+     * floorboard that Herbert cannot walk past. Gets visibly more scuffed as he
+     * works on it.
+     */
+    fun renderScratchSpots(canvas: Canvas, spots: List<ScratchSpot>, animTimer: Float) {
+        for (spot in spots) {
+            val cx = spot.x
+            val cy = spot.y
+            val rx = spot.radiusX
+            val ry = spot.radiusY
+
+            // Untouched spots breathe a faint warm glow so the player reads them
+            // as interactive rather than as a stain on the background.
+            if (!spot.used) {
+                val pulse = 1f + sin(animTimer * 4.5f + spot.id).toFloat() * 0.10f
+                canvas.drawOval(cx - rx * 1.22f * pulse, cy - ry * 1.22f * pulse,
+                                cx + rx * 1.22f * pulse, cy + ry * 1.22f * pulse, spotTemptGlowPaint)
+            }
+
+            // Discoloured, slightly greyed wood
+            canvas.drawOval(cx - rx, cy - ry, cx + rx, cy + ry, spotDiscolourPaint)
+            // Worn-through core
+            canvas.drawOval(cx - rx * 0.66f, cy - ry * 0.62f, cx + rx * 0.66f, cy + ry * 0.62f, spotWornCorePaint)
+            canvas.drawOval(cx - rx, cy - ry, cx + rx, cy + ry, spotEdgePaint)
+
+            // Old claw scuffs, always present - this patch has history
+            for (i in 0 until 5) {
+                val a = (i / 5f) * 2f * Math.PI.toFloat() + 0.4f
+                val sx = cx + cos(a) * rx * 0.28f
+                val sy = cy + sin(a) * ry * 0.28f
+                canvas.drawLine(sx, sy, sx + cos(a) * rx * 0.5f, sy + sin(a) * ry * 0.5f, spotClawPaint)
+            }
+
+            // Fresh pale gouges accumulate as Herbert goes at it
+            val fresh = (spot.scratchProgress * 9f).toInt()
+            for (i in 0 until fresh) {
+                val a = (i / 9f) * 2f * Math.PI.toFloat() + 0.9f
+                val inner = rx * 0.18f
+                val sx = cx + cos(a) * inner
+                val sy = cy + sin(a) * (ry * 0.18f)
+                canvas.drawLine(sx, sy, sx + cos(a) * rx * 0.62f, sy + sin(a) * ry * 0.62f, spotFreshClawPaint)
+            }
+            if (spot.scratchProgress > 0.35f) {
+                canvas.drawOval(cx - rx * 0.22f, cy - ry * 0.2f, cx + rx * 0.22f, cy + ry * 0.2f, spotRawWoodPaint)
             }
         }
     }

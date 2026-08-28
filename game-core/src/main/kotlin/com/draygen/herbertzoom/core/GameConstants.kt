@@ -6,6 +6,7 @@ object GameConstants {
     const val WORLD_HEIGHT = 1080f
 
     // Herbert Physical Specs - slightly larger for readability, generous forgiving hitbox
+    const val HERBERT_HOME_X = 300f // Herbert's anchored running lane on screen
     const val HERBERT_WIDTH = 160f
     const val HERBERT_HEIGHT = 115f
     const val HERBERT_HITBOX_RADIUS = 36f // Softened hitbox for forgiving near misses
@@ -37,9 +38,24 @@ object GameConstants {
     // Stumble / Invulnerability recovery
     const val STUMBLE_INVULNERABILITY_SEC = 1.5f
 
+    // The Spot - a worn, discoloured patch of floorboard that Herbert cannot resist.
+    // He breaks off his run, laps around it and scratches at it in circles.
+    const val SCRATCH_DURATION_SEC = 1.6f
+    const val SCRATCH_ORBIT_TURNS = 2f // laps around the patch during one scratch
+    const val SCRATCH_ORBIT_RADIUS_X = 108f
+    const val SCRATCH_ORBIT_RADIUS_Y = 54f
+    const val SCRATCH_WORLD_SLOWDOWN = 0.15f // the room nearly stops while he's busy
+    const val SCRATCH_SPOT_RADIUS_X = 96f
+    const val SCRATCH_SPOT_RADIUS_Y = 48f
+    const val SCRATCH_SPOT_MIN_INTERVAL_SEC = 9f // don't let spots crowd each other
+    // radians/sec needed to complete SCRATCH_ORBIT_TURNS laps within SCRATCH_DURATION_SEC
+    val SCRATCH_ORBIT_SPEED = (2f * kotlin.math.PI.toFloat()) * SCRATCH_ORBIT_TURNS / SCRATCH_DURATION_SEC
+
     // Scoring
     const val POINTS_PER_TREAT = 100
     const val POINTS_PER_TOY = 250
     const val POINTS_PER_NEAR_MISS = 150
     const val POINTS_PER_METER_RUN = 10
+    const val POINTS_PER_SCRATCH_SPOT = 500
+    const val ZOOMIE_PER_SCRATCH_SPOT = 45f
 }

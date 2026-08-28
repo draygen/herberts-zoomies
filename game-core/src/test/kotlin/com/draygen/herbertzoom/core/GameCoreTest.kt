@@ -165,4 +165,118 @@ class GameCoreTest {
         assertEquals(GamePlayState.PLAYING, world.state)
         assertNotEquals(AnimationState.FLOPPED, world.herbert.animState)
     }
+
+    @Test
+    fun `test scratch spot triggers circling scratch and awards bonus`() {
+        world.startNewRun()
+        var fired: ScratchSpotEvent? = null
+        world.onScratchSpot = { fired = it }
+
+        val spot = ScratchSpot(id = 1L, x = world.herbert.x, y = world.herbert.y)
+        world.scratchSpots.add(spot)
+
+        world.update(0.016f)
+
+        assertNotNull(fired)
+        assertTrue(spot.used)
+        assertTrue(world.herbert.isScratching)
+        assertEquals(AnimationState.SCRATCHING, world.herbert.animState)
+        assertTrue(world.score.currentScore > 0)
+        assertEquals(GameConstants.ZOOMIE_PER_SCRATCH_SPOT, world.zoomieMeter.value)
+    }
+
+    @Test
+    fun `test scratching orbits the patch then returns Herbert to his lane`() {
+        world.startNewRun()
+        val centerY = world.herbert.y
+        world.scratchSpots.add(ScratchSpot(id = 1L, x = world.herbert.x, y = centerY))
+
+        world.update(0.016f)
+        assertTrue(world.herbert.isScratching)
+
+        // Sample the orbit: Herbert must move away from his anchored lane
+        var maxOffset = 0f
+        var steps = 0
+        while (world.herbert.isScratching && steps < 400) {
+            world.update(0.016f)
+            val dx = kotlin.math.abs(world.herbert.x - GameConstants.HERBERT_HOME_X)
+            val dy = kotlin.math.abs(world.herbert.y - centerY)
+            maxOffset = maxOf(maxOffset, maxOf(dx, dy))
+            steps++
+        }
+
+        assertTrue(maxOffset > 40f, "Herbert should visibly circle the patch, saw $maxOffset")
+        assertFalse(world.herbert.isScratching)
+        assertEquals(GameConstants.HERBERT_HOME_X, world.herbert.x)
+        assertEquals(AnimationState.RUNNING, world.herbert.animState)
+    }
+
+    @Test
+    fun `test scratch spot only fires once and is safe from collisions`() {
+        world.startNewRun()
+        var fireCount = 0
+        world.onScratchSpot = { fireCount++ }
+
+        world.scratchSpots.add(ScratchSpot(id = 1L, x = world.herbert.x, y = world.herbert.y))
+        repeat(10) { world.update(0.016f) }
+
+        assertEquals(1, fireCount)
+        assertTrue(world.herbert.isInvulnerable)
+
+        // An obstacle landing on him mid-scratch must not end the run
+        world.obstacles.add(
+            Obstacle(
+                id = 2L, x = world.herbert.x, y = world.herbert.y,
+                type = ObstacleType.TABLE_LEG, width = 60f, height = 180f,
+                canJumpOver = false, isSoft = false
+            )
+        )
+        world.update(0.016f)
+        assertEquals(GamePlayState.PLAYING, world.state)
+        assertEquals(1, world.herbert.lives)
+    }
+
+    @Test
+    fun `test world nearly stops while Herbert scratches`() {
+        world.startNewRun()
+        world.update(0.016f)
+        val normalStep = world.score.distanceRun
+
+        world.startNewRun()
+        world.scratchSpots.add(ScratchSpot(id = 1L, x = world.herbert.x, y = world.herbert.y))
+        world.update(0.016f) // triggers the scratch
+        val before = world.score.distanceRun
+        world.update(0.016f) // this frame runs at scratch speed
+        val scratchStep = world.score.distanceRun - before
+
+        assertTrue(scratchStep < normalStep * 0.5f,
+            "world should slow during a scratch: $scratchStep vs $normalStep")
+    }
+
+    @Test
+    fun `test Herbert cannot jump or steer away mid-scratch`() {
+        world.startNewRun()
+        world.scratchSpots.add(ScratchSpot(id = 1L, x = world.herbert.x, y = world.herbert.y))
+        world.update(0.016f)
+        assertTrue(world.herbert.isScratching)
+
+        world.herbert.jump()
+        assertFalse(world.herbert.isJumping)
+
+        val targetBefore = world.herbert.targetY
+        world.herbert.steerTo(0.85f)
+        assertEquals(targetBefore, world.herbert.targetY)
+    }
+
+    @Test
+    fun `test flopping cancels an in-progress scratch`() {
+        world.startNewRun()
+        world.scratchSpots.add(ScratchSpot(id = 1L, x = world.herbert.x, y = world.herbert.y))
+        world.update(0.016f)
+        assertTrue(world.herbert.isScratching)
+
+        world.herbert.flop()
+        assertFalse(world.herbert.isScratching)
+        assertEquals(AnimationState.FLOPPED, world.herbert.animState)
+    }
 }
