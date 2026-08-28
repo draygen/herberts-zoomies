@@ -95,6 +95,19 @@ thread (both `onResume()` and `surfaceCreated()` call it), which raced the
 entity lists into a `ConcurrentModificationException`. `resume()` is now
 idempotent.
 
+**That bug had been silently doubling the game speed.** Two loops each advanced
+the world every frame, so the sim ran at ~2x real time and every tuning value
+behaved as if doubled. Measured from screen recordings: 675 world units/s with
+the bug vs 338 after the fix. All prior difficulty tuning was authored by feel
+against that 2x clock, so the speed constants were re-based to the real
+one-thread numbers that reproduce the pace the game always actually played at
+(BASE_SPEED 360 -> 720, MAX_NORMAL_SPEED 780 -> 1500, SPEED_ACCELERATION 9 ->
+18, LATERAL_STEER_SPEED 1600 -> 3200, JUMP_DURATION_SEC 0.62 -> 0.34, spawn
+intervals halved). Verified back at 720 units/s on the emulator.
+The deliberately generous timers (6s Maximum Zoomies, 4s combo window, 1.5s
+stumble invulnerability, slow zoomie decay) were left at their real values, so
+they are now genuinely twice as forgiving as they used to play.
+
 ## 8. Emulator Environment (added this pass)
 Android Studio `2026.1.3.7`, SDK Platform 35, Emulator `37.1.11` and the
 `android-35 google_apis x86_64` system image are installed on the **Windows**

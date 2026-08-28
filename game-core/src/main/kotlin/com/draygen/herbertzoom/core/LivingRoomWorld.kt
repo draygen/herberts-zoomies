@@ -29,7 +29,7 @@ class LivingRoomWorld(
 
     private var nextEntityId = 1L
     private var spawnTimer = 0f
-    private var spawnInterval = 1.6f // Generous spacing between waves
+    private var spawnInterval = 0.85f // Generous spacing between waves
     private var distanceMeterAccumulator = 0f
     private var runTime = 0f
     private var lastScratchSpotTime = -999f
@@ -51,7 +51,7 @@ class LivingRoomWorld(
         pickups.clear()
         scratchSpots.clear()
         spawnTimer = 0f
-        spawnInterval = 1.6f
+        spawnInterval = 0.85f
         distanceMeterAccumulator = 0f
         runTime = 0f
         lastScratchSpotTime = -999f
@@ -137,8 +137,8 @@ class LivingRoomWorld(
         // Spawning with early-game gentle pacing
         spawnTimer += dt
         // In the first 25 seconds, space things out gently
-        val baseRate = if (runTime < 20f) 1.8f else 1.4f
-        val currentSpawnRate = if (zoomieMeter.isMaxZoomies) 0.8f else (baseRate - (herbert.currentSpeed / 6000f)).coerceAtLeast(0.9f)
+        val baseRate = if (runTime < 20f) 0.95f else 0.75f
+        val currentSpawnRate = if (zoomieMeter.isMaxZoomies) 0.45f else (baseRate - (herbert.currentSpeed / 12000f)).coerceAtLeast(0.5f)
         if (spawnTimer >= currentSpawnRate) {
             spawnTimer = 0f
             spawnWave()

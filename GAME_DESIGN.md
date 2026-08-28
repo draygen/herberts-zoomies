@@ -10,7 +10,8 @@ Tone: Adorable, stupid, chaotic, cozy, funny, never violent.
 - **Platform**: Android (Target SDK 35, Min SDK 29).
 - **Target Device**: Samsung Galaxy S24 Ultra (1080x2340 / high-DPI AMOLED 120Hz/60Hz).
 - **Orientation**: **Landscape** (gives maximum horizontal visibility down the room while steering Herbert).
-- **Framerate Target**: Solid 60 FPS (scalable fixed-timestep loop on dedicated SurfaceView rendering thread).
+- **Framerate Target**: Solid 60 FPS (scalable fixed-timestep loop on **one** dedicated SurfaceView rendering thread - see the speed note in `HANDOFF.md`; a duplicate loop thread silently ran the whole simulation at 2x for most of the project's life).
+- **Speed Tuning**: the movement block at the top of `GameConstants` is the difficulty knob. Herbert starts at 720 world units/s and ramps to 1500 over ~45s.
 
 ## 3. Core Gameplay
 1. **Movement**:

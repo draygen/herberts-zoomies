@@ -17,14 +17,18 @@ object GameConstants {
     const val KITTY_HITBOX_RADIUS = 45f
 
     // Movement speeds (world units per second) - gentle entry & gradual ramp
-    const val BASE_SPEED = 360f // reduced from 500f for comfortable reaction time
-    const val MAX_NORMAL_SPEED = 780f // reduced from 950f
-    const val SPEED_ACCELERATION = 9f // slow, smooth ramp
+    // NOTE: until the double game-loop-thread bug was fixed, the world was
+    // advanced twice per frame, so every value here behaved as if doubled. These
+    // are the real one-thread numbers that reproduce the pace the game has
+    // always actually played at. This block is the difficulty knob.
+    const val BASE_SPEED = 720f
+    const val MAX_NORMAL_SPEED = 1500f
+    const val SPEED_ACCELERATION = 18f // reaches top speed in ~45s
     const val MAX_ZOOMIE_SPEED_BOOST = 1.35f
-    const val LATERAL_STEER_SPEED = 1600f // snappy steering response
+    const val LATERAL_STEER_SPEED = 3200f // snappy steering response
 
     // Jump Physics - generous airborne hang time
-    const val JUMP_DURATION_SEC = 0.62f
+    const val JUMP_DURATION_SEC = 0.34f
     const val JUMP_MAX_HEIGHT = 150f
 
     // Zoomie Meter - fills quickly to reward player
@@ -40,11 +44,11 @@ object GameConstants {
 
     // The Spot - a worn, discoloured patch of floorboard that Herbert cannot resist.
     // He breaks off his run, laps around it and scratches at it in circles.
-    const val SCRATCH_DURATION_SEC = 1.6f
+    const val SCRATCH_DURATION_SEC = 1.15f
     const val SCRATCH_ORBIT_TURNS = 2f // laps around the patch during one scratch
     const val SCRATCH_ORBIT_RADIUS_X = 108f
     const val SCRATCH_ORBIT_RADIUS_Y = 54f
-    const val SCRATCH_WORLD_SLOWDOWN = 0.15f // the room nearly stops while he's busy
+    const val SCRATCH_WORLD_SLOWDOWN = 0.2f // the room nearly stops while he's busy
     const val SCRATCH_SPOT_RADIUS_X = 96f
     const val SCRATCH_SPOT_RADIUS_Y = 48f
     const val SCRATCH_SPOT_MIN_INTERVAL_SEC = 9f // don't let spots crowd each other
