@@ -25,7 +25,13 @@ Tone: Adorable, stupid, chaotic, cozy, funny, never violent.
    - **Slippers, Sock piles, Rug corners**: Low obstacles that can be jumped over or dodged.
    - **Couch Cushions & Stools**: Bounce off or leap onto.
    - **Table/Chair Legs**: Solid obstacles requiring swift steering.
-4. **The Zoomie Meter & Maximum Zoomies**:
+4. **The Spot (Scratch Patch)**:
+   - A small **discoloured, worn patch of floorboard** occasionally appears on the floor. Based on real Herbert, who cannot walk past his one.
+   - Herbert breaks off his lane, **laps around the patch twice** and **rakes at it with his front paws in circles**, then rejoins the run.
+   - The room slows to 15% for the ~1.6s so it reads as a deliberate detour, and Herbert is collision-immune throughout - the bit can never cost a run.
+   - Reward: 500 points (combo / Max Zoomies multipliers apply) + 45 zoomie energy, enough to tip the meter into Maximum Zoomies.
+   - Deliberately rare: never before 10s, one on screen at a time, 9s minimum gap. It is a treat, not a staple.
+5. **The Zoomie Meter & Maximum Zoomies**:
    - Meter charges from pickups, near misses, and uninterrupted running.
    - At 100%, **MAXIMUM ZOOMIES** activates:
      - Herbert's eyes dilate huge with wild blue intensity.
@@ -33,7 +39,7 @@ Tone: Adorable, stupid, chaotic, cozy, funny, never violent.
      - Score multiplier (3x).
      - Herbert is invincible/blows through light obstacles (e.g. harmlessly scatters socks/slippers).
      - Lasts 6 seconds, then drains back to standard run.
-5. **Fail State (Wholesome / Funny)**:
+6. **Fail State (Wholesome / Funny)**:
    - Hitting a hard obstacle (when not in Maximum Zoomies) ends the run safely.
    - Failure states include: Flopping onto pink belly with dazed cute eyes, diving into a box and loafing, abruptly stopping to lick paw.
    - No injury, blood, or distress.

@@ -81,7 +81,21 @@ Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original 
    - Level 2: *Kitchen Tile Drift* (low friction sliding mechanics).
    - Level 3: *Midnight Hallway Sprint*.
 
-## 7. Emulator Environment (added this pass)
+## 7. The Spot (added this pass)
+Herbert's real habit of circling and scratching a discoloured patch of floor is
+now a gameplay beat. `ScratchSpot` (game-core) spawns rarely; on contact Herbert
+enters the new `SCRATCHING` animation state, orbits the patch for ~1.6s with his
+front paws windmilling, and is collision-immune while the world scroll drops to
+15%. Worth 500 pts + 45 zoomie energy. Tuning lives in `GameConstants`
+(`SCRATCH_*`), visuals in `WorldRenderer.renderScratchSpots` and the
+`SCRATCHING` branches of `HerbertRenderer`.
+
+Fixed alongside it: `GameSurfaceView.resume()` was starting a second game-loop
+thread (both `onResume()` and `surfaceCreated()` call it), which raced the
+entity lists into a `ConcurrentModificationException`. `resume()` is now
+idempotent.
+
+## 8. Emulator Environment (added this pass)
 Android Studio `2026.1.3.7`, SDK Platform 35, Emulator `37.1.11` and the
 `android-35 google_apis x86_64` system image are installed on the **Windows**
 host; the Gradle build still uses the untouched WSL SDK/JDK shared with
@@ -91,9 +105,11 @@ Both hold a solid **60 FPS** with the game running. Full details, including the
 landscape-window `spin` gotcha and real-vs-emulated differences, are in
 `docs/EMULATOR.md`.
 
-## 8. Decisions Not to Casually Reverse
+## 9. Decisions Not to Casually Reverse
 - Keep `game-core` 100% decoupled from Android SDK so physics/rules can be tested instantaneously on JVM without emulator/device overhead.
 - Keep the coordinate system virtualized (1920x1080) with dynamic aspect ratio fill to preserve crisp rendering on any phone.
 - Maintain wholesome / no-harm policy for Herbert and Kitty (flops, loafs, and comical stumbles only).
 - Keep normal iteration on the emulator. The real S24 Ultra is reserved for agreed milestone verification, and `herbert-dev.sh` enforces this.
 - Do not hardcode anything to the emulator's 1440x3120 panel; the virtual 1920x1080 space with aspect-fill scaling stays authoritative.
+- Keep The Spot rare and always safe. It is a joke about Herbert, not a scoring staple or a hazard.
+- Keep `GameSurfaceView.resume()` idempotent; two game-loop threads crash the renderer.
