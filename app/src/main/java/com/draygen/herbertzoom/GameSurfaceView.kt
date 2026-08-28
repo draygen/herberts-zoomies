@@ -82,6 +82,15 @@ class GameSurfaceView(context: Context) : SurfaceView(context), SurfaceHolder.Ca
             particleManager.spawnHearts(world.herbert.x, world.herbert.y, count = 6)
         }
 
+        world.onStumble = { event ->
+            soundEffects.playNearMiss()
+            vibrateSubtle(30)
+            triggerScreenShake(durationSec = 0.2f, magnitude = 8f)
+            particleManager.spawnDust(world.herbert.x, world.herbert.y + 15f, count = 5)
+            val tag = if (event.obstacle.isKitty) "OOF! KITTY!" else "WHOOPS!"
+            particleManager.spawnFloatingText(world.herbert.x, world.herbert.y - 40f, tag, "#FF7043")
+        }
+
         world.onFlop = {
             soundEffects.playFlop()
             vibrateSubtle(45)

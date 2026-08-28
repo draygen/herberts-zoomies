@@ -9,11 +9,33 @@
 
 ## 2. Technology & Architecture Choices
 - **Engine**: Pure Kotlin Native SurfaceView Game Engine with dual-module separation:
-  - `game-core`: Clean, deterministic game simulation engine with zero Android runtime dependencies. Encapsulates `Herbert`, `LivingRoomWorld`, `Obstacle` & `Pickup` management, `ZoomieMeter`, `ScoreRecord`, collision detection, jump parabolic physics, and combo multipliers. Fully unit tested via JUnit 5.
-  - `app`: Android SurfaceView fixed-timestep render loop (~60 FPS target with fullscreen fill scaling on Samsung's ~19.5:9 aspect ratio), custom high-performance 2D Canvas vector rendering (`HerbertRenderer`, `WorldRenderer`, `GameHudRenderer`), dynamic synthesized sound effects (`SoundEffects`), particle juice system (`ParticleSystem`), and lifecycle management (`MainActivity`).
-- **Why this stack**: Zero bloated third-party engines, instantaneous compile times (sub-second incremental builds), predictable memory allocations without GC stalls, zero network permissions, and native compatibility on Galaxy S24 Ultra.
+  - `game-core`: Clean, deterministic game simulation engine with zero Android runtime dependencies. Encapsulates `Herbert`, `Kitty`, `LivingRoomWorld`, `Obstacle` & `Pickup` management, `ZoomieMeter`, `ScoreRecord`, collision detection, jump parabolic physics, and combo multipliers. Fully unit tested via JUnit 5.
+  - `app`: Android SurfaceView fixed-timestep render loop (~60 FPS target with fullscreen fill scaling on Samsung's ~19.5:9 aspect ratio), custom high-performance 2D Canvas vector rendering (`HerbertRenderer`, `KittyRenderer`, `WorldRenderer`, `GameHudRenderer`), dynamic synthesized sound effects (`SoundEffects`), particle juice system (`ParticleSystem`), and lifecycle management (`MainActivity`).
 
-## 3. Commands
+## 3. What Was Changed in This Pass
+
+### A. Real-Herbert Mascot Overhaul (`HerbertRenderer.kt`):
+- **Fur & Markings**: Switched to mostly cream-white body with authentic dark seal/brown ear tips, dark eye mask encircling the eyes, white forehead-to-muzzle blaze, and a solid dark tail with expressive kitten whip animations.
+- **Eyes**: Large pale ice-blue eyes with royal blue inner iris ring, deep black pupils, and bright glints (dilating huge during Maximum Zoomies).
+- **Pink Accents**: Bubblegum pink nose and 3 pink toe beans on paws. Visible pink belly during jumps, skids, and flopping.
+
+### B. Added Kitty as a Character Hazard (`KittyRenderer.kt` & `WorldEntities.kt`):
+- **Visuals**: Plump, short, compact 9-year-old brown/gray mackerel tabby with forehead "M" stripes, cream muzzle/chest, and round gold-green eyes with heavy unamused eyelids ("sick of Herbert's nonsense").
+- **Gameplay Behaviors**:
+  - `KITTY_LOAF`: Loafing on the floor judging Herbert.
+  - `KITTY_SLEEPING`: Sleeping with curved eyes and floating "Zzz"s.
+  - `KITTY_WADDLE`: Waddling slowly across the room.
+  - `SWAT ATTACK`: Extends paw and claws with cartoon swipe when Herbert zooms nearby.
+  - *Interaction*: Herbert can cleanly leap/pounce over Kitty (+near miss points) or bounce safely past in Maximum Zoomies.
+
+### C. Difficulty, Accessibility & Fun Rebalance:
+- **Base Speed**: Lowered starting speed from `500f` to `360f` with a much smoother acceleration ramp (`9f/s`).
+- **Pacing**: First 25 seconds space obstacles gently (`1.8s` spawn intervals) to build player confidence.
+- **Forgiving Hitboxes & Pickups**: Herbert's hitbox softened to `36f` (from `45f`) and pickup radius enlarged to `55f`.
+- **Life / Stumble Buffer**: First collision triggers a forgiving cartoon stumble recovery with 1.5s invulnerability and temporary slowdown rather than instant run-ending game over.
+- **Generous Zoomies**: Zoomie meter charges faster (`25-35%` per pickup) and decays at half the previous rate.
+
+## 4. Commands
 
 ### Run Unit Tests:
 ```bash
@@ -22,7 +44,7 @@ export PATH=$JAVA_HOME/bin:$PATH
 ./gradlew test
 ```
 
-### Build APK:
+### Build Debug APK:
 ```bash
 ./gradlew assembleDebug
 ```
@@ -33,48 +55,6 @@ APK Path: `app/build/outputs/apk/debug/app-debug.apk`
 adb -s 192.168.0.71:5555 install -r app/build/outputs/apk/debug/app-debug.apk
 adb -s 192.168.0.71:5555 shell am start -n com.draygen.herbertzoom/.MainActivity
 ```
-
-## 4. What Is Implemented & Verified on Hardware
-- [x] Full standalone Android Gradle repository (`game-core` + `app`).
-- [x] **Cozy Layered Living Room Art Pass**:
-  - Warm parquet hardwood floor with scrolling plank joints.
-  - Pastel wallpaper wall with vertical stripes, picture frames (cat portrait), and windows with soft outdoor lighting.
-  - Parallax teal living room area rugs with decorative borders and tassels.
-- [x] **Expressive Herbert Mascot**:
-  - Striking oversized blue eyes with dark blue iris shading, gleams, and dilated pupils during Zoomies.
-  - Distinct black ear tips, black forehead spot, and black back/tail markings matching real Herbert.
-  - Exposed pink belly during jumps, skids, and flopping.
-  - Rosy blush cheeks and cute :3 mouth.
-  - Dynamic animated tail whip with black tip.
-  - Dynamic scaling floor drop shadow that responds to jump height.
-- [x] **Living Room Props & Obstacles**:
-  - Slippers (with fluffy inner lining).
-  - Amazon delivery cardboard boxes with open flaps and doodle markings.
-  - Sofa cushions (teal with button tufts).
-  - Sisal scratching posts with rope grooves and heavy wooden base.
-  - Turned mahogany table legs.
-  - Crinkle cat tunnels with fabric hoops.
-  - Sock piles with colorful stripes.
-  - Couch corner armrests with cushions.
-- [x] **Popping Pickups**:
-  - Golden fish treats with glint highlights and outer glow.
-  - Plush mouse toys with pink ears and spring tails.
-  - Vibrant magenta yarn balls with woven thread loops and trailing string.
-- [x] **Juice & Game Feel**:
-  - Running paw dust puffs and skidding clouds.
-  - Star sparkles on treat/toy collection.
-  - Floating score multipliers (`+100`, `+300`, `CLOSE!`).
-  - Screen shake on crashes and Maximum Zoomies activation.
-  - Floating hearts during flop / max zoomies.
-- [x] **Polished HUD & Fullscreen Viewport**:
-  - Rounded semi-translucent status chips positioned cleanly within safe insets.
-  - Responsive fill-scaling eliminating black letterboxing on ultra-wide screens.
-  - Animated combo multiplier badge (`🔥 2x COMBO!`).
-  - Styled capsule Zoomie Energy meter.
-- [x] **Real S24 Ultra Hardware Verification (`SM-S928U`)**:
-  - Verified 60 FPS silky smooth performance.
-  - Touch drag steering and swipe jumping confirmed responsive.
-  - Verified pause/resume backgrounding without crashing or memory leaks.
 
 ## 5. Assets & Licenses
 Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original programmatic / synthesized vector & PCM sound code under project license (MIT / Proprietary). No third-party copyright assets are loaded.
@@ -91,4 +71,4 @@ Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original 
 ## 7. Decisions Not to Casually Reverse
 - Keep `game-core` 100% decoupled from Android SDK so physics/rules can be tested instantaneously on JVM without emulator/device overhead.
 - Keep the coordinate system virtualized (1920x1080) with dynamic aspect ratio fill to preserve crisp rendering on any phone.
-- Maintain wholesome / no-harm policy for Herbert (flops and loaves only).
+- Maintain wholesome / no-harm policy for Herbert and Kitty (flops, loafs, and comical stumbles only).

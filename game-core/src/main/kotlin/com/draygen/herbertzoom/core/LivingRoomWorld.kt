@@ -10,6 +10,7 @@ enum class GamePlayState {
 
 data class NearMissEvent(val obstacle: Obstacle)
 data class PickupEvent(val pickup: Pickup, val points: Long)
+data class StumbleEvent(val obstacle: Obstacle)
 data class FlopEvent(val obstacle: Obstacle)
 data class MaxZoomiesActivatedEvent(val duration: Float)
 
@@ -26,13 +27,15 @@ class LivingRoomWorld(
 
     private var nextEntityId = 1L
     private var spawnTimer = 0f
-    private var spawnInterval = 1.1f
+    private var spawnInterval = 1.6f // Generous spacing between waves
     private var distanceMeterAccumulator = 0f
+    private var runTime = 0f
 
     // Callbacks for sound / haptics / particles
     var onPickupCollected: ((PickupEvent) -> Unit)? = null
     var onNearMiss: ((NearMissEvent) -> Unit)? = null
     var onMaxZoomiesStart: ((MaxZoomiesActivatedEvent) -> Unit)? = null
+    var onStumble: ((StumbleEvent) -> Unit)? = null
     var onFlop: ((FlopEvent) -> Unit)? = null
 
     fun startNewRun() {
@@ -42,14 +45,16 @@ class LivingRoomWorld(
         obstacles.clear()
         pickups.clear()
         spawnTimer = 0f
-        spawnInterval = 1.1f
+        spawnInterval = 1.6f
         distanceMeterAccumulator = 0f
+        runTime = 0f
         state = GamePlayState.PLAYING
     }
 
     fun update(dt: Float) {
         if (state != GamePlayState.PLAYING) return
 
+        runTime += dt
         score.update(dt)
         val wasMax = zoomieMeter.isMaxZoomies
         zoomieMeter.update(dt)
@@ -74,12 +79,15 @@ class LivingRoomWorld(
             distanceMeterAccumulator -= 100f
         }
 
-        // Move active obstacles & pickups leftward relative to Herbert
+        // Update active obstacles & Kitty behaviors
         val iterObs = obstacles.iterator()
         while (iterObs.hasNext()) {
             val obs = iterObs.next()
             obs.x -= stepDistance
-            if (obs.x + obs.width < -150f) {
+            if (obs.isKitty) {
+                obs.updateKitty(dt, herbert.x, herbert.y)
+            }
+            if (obs.x + obs.width < -200f) {
                 iterObs.remove()
             }
         }
@@ -88,14 +96,16 @@ class LivingRoomWorld(
         while (iterPick.hasNext()) {
             val pick = iterPick.next()
             pick.x -= stepDistance
-            if (pick.x + pick.radius < -150f) {
+            if (pick.x + pick.radius < -200f) {
                 iterPick.remove()
             }
         }
 
-        // Spawning
+        // Spawning with early-game gentle pacing
         spawnTimer += dt
-        val currentSpawnRate = if (zoomieMeter.isMaxZoomies) 0.55f else (spawnInterval - (herbert.currentSpeed / 4500f)).coerceAtLeast(0.5f)
+        // In the first 25 seconds, space things out gently
+        val baseRate = if (runTime < 20f) 1.8f else 1.4f
+        val currentSpawnRate = if (zoomieMeter.isMaxZoomies) 0.8f else (baseRate - (herbert.currentSpeed / 6000f)).coerceAtLeast(0.9f)
         if (spawnTimer >= currentSpawnRate) {
             spawnTimer = 0f
             spawnWave()
@@ -106,30 +116,48 @@ class LivingRoomWorld(
     }
 
     private fun spawnWave() {
-        val spawnX = GameConstants.WORLD_WIDTH + 180f
-        val laneY = (0.24f + rng.nextFloat() * 0.60f) * GameConstants.WORLD_HEIGHT
+        val spawnX = GameConstants.WORLD_WIDTH + 200f
+        val laneY = (0.28f + rng.nextFloat() * 0.54f) * GameConstants.WORLD_HEIGHT
 
-        // Spawn obstacles
-        if (rng.nextFloat() < 0.72f) {
-            val type = when (rng.nextInt(8)) {
+        // Kitty Spawn (25% chance after 8 seconds of play)
+        if (runTime > 8f && rng.nextFloat() < 0.28f) {
+            val kittyType = when (rng.nextInt(3)) {
+                0 -> ObstacleType.KITTY_LOAF
+                1 -> ObstacleType.KITTY_SLEEPING
+                else -> ObstacleType.KITTY_WADDLE
+            }
+            val vy = if (kittyType == ObstacleType.KITTY_WADDLE) (if (rng.nextBoolean()) 90f else -90f) else 0f
+            obstacles.add(
+                Obstacle(
+                    id = nextEntityId++,
+                    x = spawnX,
+                    y = laneY,
+                    type = kittyType,
+                    width = GameConstants.KITTY_WIDTH,
+                    height = GameConstants.KITTY_HEIGHT,
+                    canJumpOver = true, // Herbert can pounce over Kitty!
+                    isSoft = true, // Soft bounce / swat
+                    vy = vy
+                )
+            )
+        } else if (rng.nextFloat() < 0.65f) {
+            // General furniture obstacles
+            val type = when (rng.nextInt(6)) {
                 0 -> ObstacleType.SLIPPER
                 1 -> ObstacleType.SOCK_PILE
                 2 -> ObstacleType.CARDBOARD_BOX
                 3 -> ObstacleType.COUCH_CUSHION
-                4 -> ObstacleType.TABLE_LEG
-                5 -> ObstacleType.CAT_TUNNEL
-                6 -> ObstacleType.SCRATCHING_POST
-                else -> ObstacleType.COUCH_SECTION
+                4 -> ObstacleType.CAT_TUNNEL
+                else -> ObstacleType.SCRATCHING_POST
             }
             val (w, h, canJump, isSoft) = when (type) {
-                ObstacleType.SLIPPER -> Quad(100f, 65f, true, true)
-                ObstacleType.SOCK_PILE -> Quad(90f, 60f, true, true)
-                ObstacleType.CARDBOARD_BOX -> Quad(140f, 110f, false, false)
-                ObstacleType.COUCH_CUSHION -> Quad(160f, 90f, true, true)
-                ObstacleType.TABLE_LEG -> Quad(65f, 190f, false, false)
-                ObstacleType.CAT_TUNNEL -> Quad(180f, 95f, true, true)
-                ObstacleType.SCRATCHING_POST -> Quad(80f, 170f, false, false)
-                ObstacleType.COUCH_SECTION -> Quad(190f, 130f, false, false)
+                ObstacleType.SLIPPER -> Quad(95f, 60f, true, true)
+                ObstacleType.SOCK_PILE -> Quad(85f, 55f, true, true)
+                ObstacleType.CARDBOARD_BOX -> Quad(125f, 95f, false, false)
+                ObstacleType.COUCH_CUSHION -> Quad(145f, 80f, true, true)
+                ObstacleType.CAT_TUNNEL -> Quad(170f, 90f, true, true)
+                ObstacleType.SCRATCHING_POST -> Quad(75f, 150f, false, false)
+                else -> Quad(100f, 60f, true, true)
             }
             obstacles.add(
                 Obstacle(
@@ -145,19 +173,20 @@ class LivingRoomWorld(
             )
         }
 
-        // Spawn pickups
-        if (rng.nextFloat() < 0.8f) {
+        // Pickups spawn frequently in rewarding lines
+        val pickupCount = if (rng.nextFloat() < 0.4f) 2 else 1
+        for (i in 0 until pickupCount) {
             val pickupType = when (rng.nextInt(3)) {
                 0 -> PickupType.TREAT
                 1 -> PickupType.TOY_MOUSE
                 else -> PickupType.YARN_BALL
             }
-            val pickupY = (0.24f + rng.nextFloat() * 0.60f) * GameConstants.WORLD_HEIGHT
+            val offsetLaneY = (0.26f + rng.nextFloat() * 0.58f) * GameConstants.WORLD_HEIGHT
             pickups.add(
                 Pickup(
                     id = nextEntityId++,
-                    x = spawnX + (rng.nextFloat() * 120f),
-                    y = pickupY,
+                    x = spawnX + (i * 140f),
+                    y = offsetLaneY,
                     type = pickupType
                 )
             )
@@ -210,11 +239,11 @@ class LivingRoomWorld(
             val dx = kotlin.math.abs(hx - obs.x)
             val dy = kotlin.math.abs(hy - obs.y)
 
-            val collidesX = dx < (obs.width / 2f + hRadius * 0.7f)
-            val collidesY = dy < (obs.height / 2f + hRadius * 0.7f)
+            val collidesX = dx < (obs.width / 2f + hRadius * 0.65f)
+            val collidesY = dy < (obs.height / 2f + hRadius * 0.65f)
 
             // Near miss check (passed close without hitting)
-            if (!obs.nearMissTriggered && !collidesX && hx > obs.right && hx < obs.right + 70f && dy < (obs.height / 2f + 95f)) {
+            if (!obs.nearMissTriggered && !collidesX && hx > obs.right && hx < obs.right + 80f && dy < (obs.height / 2f + 95f)) {
                 obs.nearMissTriggered = true
                 score.nearMissCount++
                 score.addPoints(GameConstants.POINTS_PER_NEAR_MISS.toLong(), zoomieMeter.isMaxZoomies)
@@ -227,8 +256,11 @@ class LivingRoomWorld(
             }
 
             if (collidesX && collidesY) {
-                // If Herbert is high enough in a jump and obstacle is jumpable
-                if (obs.canJumpOver && isJumping && jumpH > 35f) {
+                // If invulnerable from a recent stumble, pass safely
+                if (herbert.isInvulnerable) continue
+
+                // If Herbert is high enough in a jump and obstacle is jumpable (or jumping over Kitty!)
+                if (obs.canJumpOver && isJumping && jumpH > 30f) {
                     // Safe jump!
                     if (!obs.nearMissTriggered) {
                         obs.nearMissTriggered = true
@@ -239,11 +271,20 @@ class LivingRoomWorld(
                     continue
                 }
 
-                // If in Maximum Zoomies and obstacle is soft/scatterable, Herbert knocks it away!
-                if (zoomieMeter.isMaxZoomies && obs.isSoft) {
+                // If in Maximum Zoomies and obstacle is soft (or Kitty swat), harmlessly scatter / bounce past
+                if (zoomieMeter.isMaxZoomies) {
                     obs.hit = true
                     score.addPoints(100L, true)
                     score.incrementCombo()
+                    continue
+                }
+
+                // If Herbert still has a life buffer, trigger Stumble (forgiving recovery instead of instant loss)
+                if (herbert.lives > 0) {
+                    obs.hit = true
+                    herbert.lives--
+                    herbert.stumble()
+                    onStumble?.invoke(StumbleEvent(obs))
                     continue
                 }
 

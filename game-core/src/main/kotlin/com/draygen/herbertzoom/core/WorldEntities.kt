@@ -14,7 +14,10 @@ enum class ObstacleType {
     SOCK_PILE,
     CAT_TUNNEL,
     SCRATCHING_POST,
-    COUCH_SECTION
+    COUCH_SECTION,
+    KITTY_LOAF,
+    KITTY_SLEEPING,
+    KITTY_WADDLE
 }
 
 data class Pickup(
@@ -22,7 +25,7 @@ data class Pickup(
     var x: Float,
     var y: Float,
     val type: PickupType,
-    val radius: Float = 48f, // larger, easier to see and hit
+    val radius: Float = 55f, // Large forgiving radius
     var collected: Boolean = false
 )
 
@@ -36,12 +39,45 @@ data class Obstacle(
     val canJumpOver: Boolean,
     val isSoft: Boolean = false, // soft obstacles scatter/bounce when hit in max zoomies
     var hit: Boolean = false,
-    var nearMissTriggered: Boolean = false
+    var nearMissTriggered: Boolean = false,
+    var animTimer: Float = 0f,
+    var vy: Float = 0f, // vertical movement for waddling Kitty
+    var isKittySwatting: Boolean = false,
+    var kittySwatTimer: Float = 0f
 ) {
     val left: Float get() = x - width / 2f
     val right: Float get() = x + width / 2f
     val top: Float get() = y - height / 2f
     val bottom: Float get() = y + height / 2f
+    val isKitty: Boolean get() = type == ObstacleType.KITTY_LOAF || type == ObstacleType.KITTY_SLEEPING || type == ObstacleType.KITTY_WADDLE
+
+    fun updateKitty(dt: Float, herbertX: Float, herbertY: Float) {
+        animTimer += dt
+        if (type == ObstacleType.KITTY_WADDLE) {
+            y += vy * dt
+            if (y < 0.22f * GameConstants.WORLD_HEIGHT) {
+                y = 0.22f * GameConstants.WORLD_HEIGHT
+                vy = -vy
+            } else if (y > 0.88f * GameConstants.WORLD_HEIGHT) {
+                y = 0.88f * GameConstants.WORLD_HEIGHT
+                vy = -vy
+            }
+        }
+
+        // Kitty warns/swats when Herbert zooms nearby
+        val distSq = (herbertX - x) * (herbertX - x) + (herbertY - y) * (herbertY - y)
+        if (distSq < 220f * 220f && !isKittySwatting) {
+            isKittySwatting = true
+            kittySwatTimer = 0.6f
+        }
+
+        if (kittySwatTimer > 0f) {
+            kittySwatTimer -= dt
+            if (kittySwatTimer <= 0f) {
+                isKittySwatting = false
+            }
+        }
+    }
 }
 
 data class ScoreRecord(
@@ -66,7 +102,7 @@ data class ScoreRecord(
         if (comboMultiplier < 5) {
             comboMultiplier++
         }
-        comboTimer = 3.5f // 3.5 seconds to keep combo alive
+        comboTimer = 4.0f // generous 4 seconds
     }
 
     fun update(dt: Float) {

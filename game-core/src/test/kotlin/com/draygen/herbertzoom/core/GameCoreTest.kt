@@ -90,13 +90,15 @@ class GameCoreTest {
     }
 
     @Test
-    fun `test obstacle collision results in wholesome flop`() {
+    fun `test first collision triggers forgiving stumble and second triggers flop`() {
         world.startNewRun()
+        var stumbleFired = false
         var flopFired = false
+        world.onStumble = { stumbleFired = true }
         world.onFlop = { flopFired = true }
 
-        // Place solid obstacle right at Herbert
-        val obstacle = Obstacle(
+        // First hit should stumble instead of instant flop
+        val obstacle1 = Obstacle(
             id = 1L,
             x = world.herbert.x,
             y = world.herbert.y,
@@ -106,7 +108,30 @@ class GameCoreTest {
             canJumpOver = false,
             isSoft = false
         )
-        world.obstacles.add(obstacle)
+        world.obstacles.add(obstacle1)
+
+        world.update(0.016f)
+
+        assertEquals(GamePlayState.PLAYING, world.state)
+        assertTrue(stumbleFired)
+        assertTrue(world.herbert.isInvulnerable)
+        assertEquals(0, world.herbert.lives)
+
+        // Expire invulnerability
+        world.herbert.invulnerabilityTimer = 0f
+
+        // Second hit triggers game over flop
+        val obstacle2 = Obstacle(
+            id = 2L,
+            x = world.herbert.x,
+            y = world.herbert.y,
+            type = ObstacleType.TABLE_LEG,
+            width = 60f,
+            height = 180f,
+            canJumpOver = false,
+            isSoft = false
+        )
+        world.obstacles.add(obstacle2)
 
         world.update(0.016f)
 
@@ -116,28 +141,27 @@ class GameCoreTest {
     }
 
     @Test
-    fun `test jumping over jumpable obstacle prevents game over`() {
+    fun `test jumping over Kitty prevents collision`() {
         world.startNewRun()
 
-        val obstacle = Obstacle(
+        val kitty = Obstacle(
             id = 1L,
             x = world.herbert.x,
             y = world.herbert.y,
-            type = ObstacleType.SLIPPER,
-            width = 90f,
-            height = 60f,
+            type = ObstacleType.KITTY_LOAF,
+            width = GameConstants.KITTY_WIDTH,
+            height = GameConstants.KITTY_HEIGHT,
             canJumpOver = true,
             isSoft = true
         )
-        world.obstacles.add(obstacle)
+        world.obstacles.add(kitty)
 
-        // Initiate jump and update to mid-air peak
+        // Mid-air jump
         world.herbert.jump()
         world.herbert.update(GameConstants.JUMP_DURATION_SEC / 2f, false)
 
         world.update(0.016f)
 
-        // Should still be playing
         assertEquals(GamePlayState.PLAYING, world.state)
         assertNotEquals(AnimationState.FLOPPED, world.herbert.animState)
     }

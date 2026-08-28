@@ -6,6 +6,7 @@ enum class AnimationState {
     JUMPING,
     MAX_ZOOM_RUNNING,
     SKIDDING,
+    STUMBLING,
     FLOPPED,
     BOX_DIVE
 }
@@ -21,8 +22,12 @@ data class Herbert(
     var isMaxZoomies: Boolean = false,
     var animTimer: Float = 0f,
     var eyeWideness: Float = 1.0f,
-    var skidAngle: Float = 0f
+    var skidAngle: Float = 0f,
+    var invulnerabilityTimer: Float = 0f,
+    var lives: Int = 1 // 1 life buffer for forgiving stumbles
 ) {
+    val isInvulnerable: Boolean get() = invulnerabilityTimer > 0f
+
     val jumpHeight: Float
         get() {
             if (!isJumping) return 0f
@@ -38,8 +43,15 @@ data class Herbert(
     }
 
     fun steerTo(normalizedY: Float) {
-        val clamped = normalizedY.coerceIn(0.12f, 0.88f)
+        val clamped = normalizedY.coerceIn(0.18f, 0.88f)
         targetY = clamped * GameConstants.WORLD_HEIGHT
+    }
+
+    fun stumble() {
+        invulnerabilityTimer = GameConstants.STUMBLE_INVULNERABILITY_SEC
+        animState = AnimationState.STUMBLING
+        // Brief slowdown
+        currentSpeed = (currentSpeed * 0.7f).coerceAtLeast(GameConstants.BASE_SPEED)
     }
 
     fun update(dt: Float, maxZoomiesActive: Boolean) {
@@ -48,7 +60,14 @@ data class Herbert(
         animTimer += dt
         isMaxZoomies = maxZoomiesActive
 
-        // Lateral steering smoothing
+        if (invulnerabilityTimer > 0f) {
+            invulnerabilityTimer -= dt
+            if (invulnerabilityTimer <= 0f && animState == AnimationState.STUMBLING) {
+                animState = AnimationState.RUNNING
+            }
+        }
+
+        // Lateral steering smoothing (snappy & forgiving)
         val dy = targetY - y
         val moveStep = GameConstants.LATERAL_STEER_SPEED * dt
         if (kotlin.math.abs(dy) <= moveStep) {
@@ -57,7 +76,7 @@ data class Herbert(
         } else {
             val sign = if (dy > 0) 1f else -1f
             y += sign * moveStep
-            skidAngle = sign * 12f // playful tilt when steering fast
+            skidAngle = sign * 14f // playful kitten tilt
         }
 
         // Jump progression
@@ -69,19 +88,19 @@ data class Herbert(
             }
         }
 
-        // Speed ramp
+        // Speed ramp (gentle acceleration)
         if (currentSpeed < GameConstants.MAX_NORMAL_SPEED) {
             currentSpeed += GameConstants.SPEED_ACCELERATION * dt
         }
 
-        val effectiveSpeed = if (isMaxZoomies) currentSpeed * GameConstants.MAX_ZOOMIE_SPEED_BOOST else currentSpeed
-
         // Update animation state
-        animState = when {
-            isJumping -> AnimationState.JUMPING
-            isMaxZoomies -> AnimationState.MAX_ZOOM_RUNNING
-            kotlin.math.abs(dy) > 100f -> AnimationState.SKIDDING
-            else -> AnimationState.RUNNING
+        if (animState != AnimationState.STUMBLING) {
+            animState = when {
+                isJumping -> AnimationState.JUMPING
+                isMaxZoomies -> AnimationState.MAX_ZOOM_RUNNING
+                kotlin.math.abs(dy) > 120f -> AnimationState.SKIDDING
+                else -> AnimationState.RUNNING
+            }
         }
 
         eyeWideness = if (isMaxZoomies) 1.8f else 1.0f
@@ -104,5 +123,7 @@ data class Herbert(
         animTimer = 0f
         eyeWideness = 1.0f
         skidAngle = 0f
+        invulnerabilityTimer = 0f
+        lives = 1
     }
 }

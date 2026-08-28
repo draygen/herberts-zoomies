@@ -251,6 +251,8 @@ class WorldRenderer {
         }
     }
 
+    private val kittyRenderer = KittyRenderer()
+
     fun renderObstacles(canvas: Canvas, obstacles: List<Obstacle>) {
         for (obs in obstacles) {
             val ox = obs.x
@@ -258,8 +260,14 @@ class WorldRenderer {
             val w = obs.width
             val h = obs.height
 
+            if (obs.isKitty) {
+                kittyRenderer.render(canvas, obs)
+                continue
+            }
+
             // Drop shadow
             canvas.drawOval(obs.left - 5f, obs.bottom - 12f, obs.right + 5f, obs.bottom + 18f, softShadowPaint)
+
 
             when (obs.type) {
                 ObstacleType.SLIPPER -> {
@@ -376,6 +384,7 @@ class WorldRenderer {
                     canvas.drawRoundRect(pillRect, 18f, 18f, sofaPillowPaint)
                     canvas.drawRoundRect(pillRect, 18f, 18f, outlinePaint)
                 }
+                else -> {}
             }
         }
     }
