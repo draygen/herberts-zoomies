@@ -1,0 +1,11 @@
+.gradle/
+build/
+app/build/
+game-core/build/
+.kotlin/
+.idea/
+*.iml
+local.properties
+.DS_Store
+*.apk
+*.aab
