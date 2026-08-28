@@ -3,7 +3,8 @@
 *Herbert's Zoomies* is an arcade Android game starring **Herbert**, a chaotic kitten who suddenly gets the Zoomies and tears across the living room at absurd speed.
 
 ## Target Device & Environment
-- **Primary Target**: Samsung Galaxy S24 Ultra (`SM-S928U` / Android 14+ / SDK 35 / Min SDK 29)
+- **Primary Target**: Samsung Galaxy S24 Ultra (`SM-S928U` / Android 16 / API 36 / built against SDK 35 / Min SDK 29)
+- **Day-to-day Target**: `Herbert_S24U_Dev` Android emulator (API 35, 1440x3120) — see [docs/EMULATOR.md](docs/EMULATOR.md)
 - **Orientation**: Landscape (immersive full-screen)
 - **Engine / Architecture**:
   - `game-core`: Pure Kotlin modular game simulation (zero Android framework dependencies, fully unit tested via JUnit 5).
@@ -26,7 +27,28 @@ export PATH=$JAVA_HOME/bin:$PATH
 APK output location:
 `app/build/outputs/apk/debug/app-debug.apk`
 
-### 3. Deploy and Launch on Galaxy S24 Ultra
+### 3. Deploy and Launch on the Emulator (normal iteration)
+
+```bash
+./scripts/herbert-dev.sh boot     # start Herbert_S24U_Dev
+./scripts/herbert-dev.sh run      # build + install + launch
+./scripts/herbert-dev.sh shot     # screenshot -> .devout/screenshots/
+./scripts/herbert-dev.sh help     # logcat, fps, pause/resume, rotate, ...
+```
+
+Every adb call is made with an explicit `-s <serial>` that resolves to an
+**emulator**, so routine iteration never touches the real phone. Full setup,
+AVD specs and gotchas: **[docs/EMULATOR.md](docs/EMULATOR.md)**.
+
+### 4. Deploy and Launch on the real Galaxy S24 Ultra (milestone checks only)
+
+```bash
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 install
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 launch
+```
+
+Equivalent raw commands:
+
 ```bash
 adb -s 192.168.0.71:5555 install -r app/build/outputs/apk/debug/app-debug.apk
 adb -s 192.168.0.71:5555 shell am start -n com.draygen.herbertzoom/.MainActivity

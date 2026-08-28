@@ -9,3 +9,9 @@ local.properties
 .DS_Store
 *.apk
 *.aab
+
+# emulator / dev-loop scratch output (screenshots, logs)
+.devout/
+
+# machine-local dev config for scripts/herbert-dev.sh
+scripts/dev.env

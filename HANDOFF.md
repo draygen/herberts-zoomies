@@ -5,7 +5,8 @@
 - **Current Branch**: `main`
 - **JDK Location**: `/home/draygen/.local/toolchains/jdk-21.0.12.1+1` (Temurin OpenJDK 21.0.12.1)
 - **Android SDK**: `/home/draygen/.local/toolchains/android-sdk` (compileSdk 35, minSdk 29, targetSdk 35)
-- **Target Physical Hardware**: Samsung Galaxy S24 Ultra (`SM-S928U`, 1080x2340 AMOLED, connected via ADB at `192.168.0.71:5555`)
+- **Target Physical Hardware**: Samsung Galaxy S24 Ultra (`SM-S928U`, Android 16 / API 36, running at FHD+ 1080x2340 @ 450dpi, connected via ADB at `192.168.0.71:5555`) — *milestone verification only*
+- **Day-to-day Dev Target**: `Herbert_S24U_Dev` Android emulator on the Windows host (API 35, 1440x3120 @ 560dpi, WHPX accelerated). Setup, AVD specs, commands and gotchas: **`docs/EMULATOR.md`**
 
 ## 2. Technology & Architecture Choices
 - **Engine**: Pure Kotlin Native SurfaceView Game Engine with dual-module separation:
@@ -50,10 +51,22 @@ export PATH=$JAVA_HOME/bin:$PATH
 ```
 APK Path: `app/build/outputs/apk/debug/app-debug.apk`
 
-### Install & Launch on Real S24 Ultra:
+### Emulator Dev Loop (default):
 ```bash
-adb -s 192.168.0.71:5555 install -r app/build/outputs/apk/debug/app-debug.apk
-adb -s 192.168.0.71:5555 shell am start -n com.draygen.herbertzoom/.MainActivity
+./scripts/herbert-dev.sh boot     # boot Herbert_S24U_Dev and wait
+./scripts/herbert-dev.sh run      # build + install + launch
+./scripts/herbert-dev.sh cycle    # ... + screenshot
+./scripts/herbert-dev.sh logcat   # this app's log
+./scripts/herbert-dev.sh fps      # real SurfaceView frame rate
+./scripts/herbert-dev.sh kill     # shut the emulator down
+```
+`herbert-dev.sh` always resolves to an `emulator-*` serial and passes an explicit
+`-s`, so it cannot accidentally deploy to the real phone.
+
+### Install & Launch on Real S24 Ultra (milestone verification only):
+```bash
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 install
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 launch
 ```
 
 ## 5. Assets & Licenses
@@ -68,7 +81,19 @@ Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original 
    - Level 2: *Kitchen Tile Drift* (low friction sliding mechanics).
    - Level 3: *Midnight Hallway Sprint*.
 
-## 7. Decisions Not to Casually Reverse
+## 7. Emulator Environment (added this pass)
+Android Studio `2026.1.3.7`, SDK Platform 35, Emulator `37.1.11` and the
+`android-35 google_apis x86_64` system image are installed on the **Windows**
+host; the Gradle build still uses the untouched WSL SDK/JDK shared with
+`draygen/smstext`. Two AVDs exist: `Herbert_S24U_Dev` (1440x3120, 6 GB, main
+target) and `Herbert_Midrange_Dev` (1080x2400, 3 GB, 2 cores, floor check).
+Both hold a solid **60 FPS** with the game running. Full details, including the
+landscape-window `spin` gotcha and real-vs-emulated differences, are in
+`docs/EMULATOR.md`.
+
+## 8. Decisions Not to Casually Reverse
 - Keep `game-core` 100% decoupled from Android SDK so physics/rules can be tested instantaneously on JVM without emulator/device overhead.
 - Keep the coordinate system virtualized (1920x1080) with dynamic aspect ratio fill to preserve crisp rendering on any phone.
 - Maintain wholesome / no-harm policy for Herbert and Kitty (flops, loafs, and comical stumbles only).
+- Keep normal iteration on the emulator. The real S24 Ultra is reserved for agreed milestone verification, and `herbert-dev.sh` enforces this.
+- Do not hardcode anything to the emulator's 1440x3120 panel; the virtual 1920x1080 space with aspect-fill scaling stays authoritative.
