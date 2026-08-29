@@ -64,10 +64,27 @@ APK Path: `app/build/outputs/apk/debug/app-debug.apk`
 `-s`, so it cannot accidentally deploy to the real phone.
 
 ### Install & Launch on Real S24 Ultra (milestone verification only):
+
+**The port is no longer 5555.** The phone is now on Android's *Wireless
+debugging* (Developer options), which listens on a **random port** that changes
+whenever wireless debugging is toggled - port 5555 is refused. Discover the
+current one, which also auto-connects if the phone is already paired:
+
 ```bash
-HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 install
-HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 launch
+adb mdns services          # -> adb-R5CX14Q3PMY-ExDWEw  _adb-tls-connect._tcp  192.168.0.71:<port>
+adb devices -l             # the phone shows up as model:SM_S928U
 ```
+
+Then, with the serial that printed (e.g. `192.168.0.71:34233`):
+
+```bash
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:<port> install
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:<port> launch
+```
+
+If `adb mdns services` lists nothing, wireless debugging is off on the phone -
+turn it back on under Developer options. The pairing itself survives, so no
+re-pairing is normally needed.
 
 ## 5. Assets & Licenses
 Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original programmatic / synthesized vector & PCM sound code under project license (MIT / Proprietary). No third-party copyright assets are loaded.
@@ -162,6 +179,14 @@ so a travelling paw would lie about where the danger is.
   `consumePendingInput()` applies them on the game thread. The two restart
   buttons were routed through the same queue, since `startNewRun()` clears the
   entity lists the render pass walks.
+
+### Verified on the real S24 Ultra
+Installed and played through on `SM-S928U` at 2340x1080 landscape. The boss
+fight holds a **locked 60 FPS on device** - mean 16.91ms, median 16.65ms, and
+p90 *and* p99 both 16.65ms, i.e. no dropped frames at all across the sample.
+(The emulator is the pessimistic case here at a 59.8 FPS median with p90
+21.3ms.) Every HUD element lands inside the safe area on the real panel, and
+the existing high score survived the upgrade untouched.
 
 ### Dev shortcuts (debug builds only, all behind `BuildConfig.DEBUG`)
 Reaching the fight legitimately needs 200 toys, which is impractical to iterate

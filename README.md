@@ -42,16 +42,24 @@ AVD specs and gotchas: **[docs/EMULATOR.md](docs/EMULATOR.md)**.
 
 ### 4. Deploy and Launch on the real Galaxy S24 Ultra (milestone checks only)
 
+The phone uses Android's **Wireless debugging**, which listens on a *random*
+port (not the old 5555). Find it first - this also auto-connects the paired
+phone:
+
 ```bash
-HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 install
-HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:5555 launch
+adb mdns services   # -> adb-R5CX14Q3PMY-ExDWEw  _adb-tls-connect._tcp  192.168.0.71:<port>
+```
+
+```bash
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:<port> install
+HERBERT_ALLOW_PHYSICAL=1 ./scripts/herbert-dev.sh --device 192.168.0.71:<port> launch
 ```
 
 Equivalent raw commands:
 
 ```bash
-adb -s 192.168.0.71:5555 install -r app/build/outputs/apk/debug/app-debug.apk
-adb -s 192.168.0.71:5555 shell am start -n com.draygen.herbertzoom/.MainActivity
+adb -s 192.168.0.71:<port> install -r app/build/outputs/apk/debug/app-debug.apk
+adb -s 192.168.0.71:<port> shell am start -n com.draygen.herbertzoom/.MainActivity
 ```
 
 ## Gameplay Controls
