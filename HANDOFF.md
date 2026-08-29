@@ -51,6 +51,32 @@ export PATH=$JAVA_HOME/bin:$PATH
 ```
 APK Path: `app/build/outputs/apk/debug/app-debug.apk`
 
+### Build an *installable* Release APK
+`./gradlew assembleRelease` produces **`app-release-unsigned.apk`** - there is no
+`signingConfig` on the release build type, and an unsigned APK cannot be
+installed. Sign it with the **debug keystore**, which matters for a reason
+beyond convenience: it is the same certificate the debug build uses, so the
+release APK installs *over* an existing debug install with `-r` and the saved
+high score survives. Signing with a fresh key would force an uninstall and wipe
+`herbert_zoomies_prefs`.
+
+```bash
+BT=/home/draygen/.local/toolchains/android-sdk/build-tools/35.0.0
+OUT=app/build/outputs/apk/release
+./gradlew assembleRelease
+$BT/zipalign -p -f 4 $OUT/app-release-unsigned.apk $OUT/app-release-aligned.apk
+$BT/apksigner sign \
+  --ks ~/.android/debug.keystore --ks-pass pass:android --key-pass pass:android \
+  --ks-key-alias androiddebugkey \
+  --out $OUT/app-release-signed.apk $OUT/app-release-aligned.apk
+```
+
+Use the release build to play the **real** pacing: `BuildConfig.DEBUG` is false,
+so Kitty arrives at the true 200 toys and both dev hotspots are unreachable.
+Verified on device by tapping the summon hotspot repeatedly with no effect.
+This is a locally-signed build for side-loading only - a real store release
+would need its own keystore, which does not exist yet.
+
 ### Emulator Dev Loop (default):
 ```bash
 ./scripts/herbert-dev.sh boot     # boot Herbert_S24U_Dev and wait
