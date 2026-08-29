@@ -121,6 +121,17 @@ data class ScoreRecord(
         }
     }
 
+    /**
+     * A flat, unmultiplied award. Used by the Kitty encounter so the advertised
+     * "+20,000" is exactly what lands, whatever the combo happens to be.
+     */
+    fun addFlatBonus(points: Long) {
+        currentScore += points
+        if (currentScore > highScore) {
+            highScore = currentScore
+        }
+    }
+
     fun incrementCombo() {
         if (comboMultiplier < 5) {
             comboMultiplier++

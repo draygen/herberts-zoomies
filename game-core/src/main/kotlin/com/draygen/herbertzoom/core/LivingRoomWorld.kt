@@ -23,6 +23,29 @@ class LivingRoomWorld(
     val score = ScoreRecord()
     var state: GamePlayState = GamePlayState.TITLE
 
+    // --- Kitty boss encounter -------------------------------------------------
+    // The boss is a contained detour inside PLAYING: the normal runner is left
+    // completely intact and is handed straight back when the encounter ends.
+    val boss = KittyBoss(rng)
+    var runMode: RunMode = RunMode.RUNNING
+        private set
+
+    /** Latched for the whole run so the fight can never trigger twice. */
+    var bossTriggered: Boolean = false
+        private set
+
+    /** Seconds elapsed inside the current boss mode (intro / victory beats). */
+    var bossModeTimer: Float = 0f
+        private set
+
+    /**
+     * Toys required to summon Kitty. Overridable ONLY by debug builds so the
+     * encounter can be reached in seconds during development.
+     */
+    var bossToyThreshold: Int = GameConstants.BOSS_TRIGGER_TOYS
+
+    val isBossActive: Boolean get() = runMode != RunMode.RUNNING
+
     val obstacles = mutableListOf<Obstacle>()
     val pickups = mutableListOf<Pickup>()
     val scratchSpots = mutableListOf<ScratchSpot>()
@@ -42,6 +65,11 @@ class LivingRoomWorld(
     var onStumble: ((StumbleEvent) -> Unit)? = null
     var onFlop: ((FlopEvent) -> Unit)? = null
     var onScratchSpot: ((ScratchSpotEvent) -> Unit)? = null
+    var onBossIntro: ((BossIntroEvent) -> Unit)? = null
+    var onBossFightStart: (() -> Unit)? = null
+    var onBossHit: ((BossHitEvent) -> Unit)? = null
+    var onBossVictory: ((BossVictoryEvent) -> Unit)? = null
+    var onBossEnded: ((BossEndedEvent) -> Unit)? = null
 
     fun startNewRun() {
         herbert.reset()
@@ -56,6 +84,12 @@ class LivingRoomWorld(
         runTime = 0f
         lastScratchSpotTime = -999f
         activeScratchSpotId = null
+        // The encounter is per-run state only. Nothing about it is persisted, so
+        // a new run always starts with Kitty un-summoned.
+        boss.reset()
+        runMode = RunMode.RUNNING
+        bossTriggered = false
+        bossModeTimer = 0f
         state = GamePlayState.PLAYING
     }
 
@@ -80,7 +114,18 @@ class LivingRoomWorld(
 
         // While Herbert is lapping The Spot the room almost stops, so the moment
         // reads as a deliberate detour rather than obstacles sliding into him.
-        val scrollScale = if (herbert.isScratching) GameConstants.SCRATCH_WORLD_SLOWDOWN else 1f
+        // The boss encounter borrows the same trick: the room keeps drifting so
+        // the scene stays alive, but slowly enough to read as "the run paused".
+        val scrollScale = when {
+            herbert.isScratching -> GameConstants.SCRATCH_WORLD_SLOWDOWN
+            runMode == RunMode.BOSS_INTRO -> {
+                // Ease the world down to a crawl over the dramatic pause.
+                val p = (bossModeTimer / GameConstants.BOSS_INTRO_PAUSE_SEC).coerceIn(0f, 1f)
+                1f + (GameConstants.BOSS_INTRO_SCROLL - 1f) * p
+            }
+            runMode != RunMode.RUNNING -> GameConstants.BOSS_FIGHT_SCROLL
+            else -> 1f
+        }
 
         // Advance world distance
         val stepDistance = effectiveSpeed * dt * scrollScale
@@ -134,6 +179,13 @@ class LivingRoomWorld(
             }
         }
 
+        if (runMode != RunMode.RUNNING) {
+            // Kitty owns the screen. No normal spawns, no normal collisions -
+            // the runner is frozen in place, not torn down.
+            updateBoss(dt)
+            return
+        }
+
         // Spawning with early-game gentle pacing
         spawnTimer += dt
         // In the first 25 seconds, space things out gently
@@ -146,6 +198,155 @@ class LivingRoomWorld(
 
         // Check Collisions
         checkCollisions()
+
+        // ...and finally: has Herbert pushed Kitty too far?
+        maybeTriggerBoss()
+    }
+
+    // =========================================================================
+    // KITTY BOSS ENCOUNTER
+    //
+    // A self-contained state machine layered over the normal run:
+    //   RUNNING -> BOSS_INTRO -> BOSS_FIGHT -> BOSS_VICTORY -> RUNNING
+    // Nothing here replaces the runner; it only pauses it.
+    // =========================================================================
+
+    private fun maybeTriggerBoss() {
+        if (bossTriggered) return
+        if (score.toysCollected < bossToyThreshold) return
+        beginBossIntro()
+    }
+
+    /** Development-only shortcut. Never reachable from release gameplay. */
+    fun debugForceBoss() {
+        if (state == GamePlayState.PLAYING && !bossTriggered) beginBossIntro()
+    }
+
+    private fun beginBossIntro() {
+        // Latch immediately: toy 201, 202... must never re-summon her.
+        bossTriggered = true
+        runMode = RunMode.BOSS_INTRO
+        bossModeTimer = 0f
+        boss.reset()
+
+        // Clear the stage so the reveal is clean and nothing can hit Herbert
+        // mid-cutscene. Score, combo and the zoomie meter are all untouched.
+        obstacles.clear()
+        pickups.clear()
+        scratchSpots.clear()
+        activeScratchSpotId = null
+        herbert.scratchTimer = 0f
+        if (herbert.animState == AnimationState.SCRATCHING) {
+            herbert.animState = AnimationState.RUNNING
+            herbert.x = GameConstants.HERBERT_HOME_X
+        }
+
+        onBossIntro?.invoke(BossIntroEvent(score.toysCollected))
+    }
+
+    private fun updateBoss(dt: Float) {
+        bossModeTimer += dt
+        when (runMode) {
+            RunMode.BOSS_INTRO -> {
+                boss.tickAnimationOnly(dt, herbert.y)
+                if (bossModeTimer >= GameConstants.BOSS_INTRO_DURATION) {
+                    runMode = RunMode.BOSS_FIGHT
+                    bossModeTimer = 0f
+                    // A boss hit must never end a run outright: Herbert gets a
+                    // deeper stumble buffer for the duration of the fight.
+                    herbert.lives = GameConstants.BOSS_STUMBLE_BUFFER
+                    boss.beginFight()
+                    onBossFightStart?.invoke()
+                }
+            }
+
+            RunMode.BOSS_FIGHT -> {
+                boss.update(dt, herbert)
+                boss.collectEnergy(herbert)
+
+                if (!herbert.isInvulnerable && boss.isHerbertStruck(herbert)) {
+                    applyBossHit()
+                }
+
+                if (boss.isDefeated) beginBossVictory()
+            }
+
+            RunMode.BOSS_VICTORY -> {
+                boss.tickAnimationOnly(dt, herbert.y)
+                if (bossModeTimer >= GameConstants.BOSS_VICTORY_DURATION) {
+                    endBossEncounter()
+                }
+            }
+
+            RunMode.RUNNING -> {}
+        }
+    }
+
+    /**
+     * Kitty never lands a run-ending blow on her own. A hit costs a stumble, the
+     * combo, and a charge of Blue Eye Energy - the same forgiving currency the
+     * rest of the game trades in.
+     */
+    private fun applyBossHit() {
+        val energyLost = boss.loseEnergyOnHit()
+        score.comboMultiplier = 1
+        score.comboTimer = 0f
+
+        if (herbert.lives > 0) {
+            herbert.lives--
+            herbert.stumble()
+            onBossHit?.invoke(BossHitEvent(herbertStumbled = true, energyLost = energyLost))
+            return
+        }
+
+        // Out of buffer: the normal wholesome flop, routed through the existing
+        // flop path so high-score saving and the usual juice all still happen.
+        herbert.flop()
+        state = GamePlayState.GAME_OVER
+        onBossHit?.invoke(BossHitEvent(herbertStumbled = false, energyLost = energyLost))
+        onFlop?.invoke(FlopEvent(bossFlopStandIn()))
+        onBossEnded?.invoke(BossEndedEvent(victory = false))
+    }
+
+    private fun bossFlopStandIn() = Obstacle(
+        id = -1L,
+        x = GameConstants.WORLD_WIDTH * 0.78f,
+        y = GameConstants.WORLD_HEIGHT * 0.5f,
+        type = ObstacleType.KITTY_LOAF,
+        width = GameConstants.KITTY_WIDTH,
+        height = GameConstants.KITTY_HEIGHT,
+        canJumpOver = false,
+        isSoft = true
+    )
+
+    private fun beginBossVictory() {
+        runMode = RunMode.BOSS_VICTORY
+        bossModeTimer = 0f
+        boss.chooseExit()
+        boss.yarn.clear()
+        boss.orbs.clear()
+        score.addFlatBonus(GameConstants.BOSS_VICTORY_BONUS)
+        onBossVictory?.invoke(BossVictoryEvent(GameConstants.BOSS_VICTORY_BONUS))
+    }
+
+    private fun endBossEncounter() {
+        runMode = RunMode.RUNNING
+        bossModeTimer = 0f
+        boss.yarn.clear()
+        boss.orbs.clear()
+
+        // Hand the run straight back, mid-zoomies, with a breather before the
+        // first obstacle so the handover never feels like an ambush.
+        herbert.lives = 1
+        if (herbert.animState == AnimationState.STUMBLING) {
+            herbert.animState = AnimationState.RUNNING
+        }
+        spawnTimer = -1.2f
+        val activated = zoomieMeter.addEnergy(GameConstants.ZOOMIE_METER_MAX)
+        if (activated) {
+            onMaxZoomiesStart?.invoke(MaxZoomiesActivatedEvent(GameConstants.MAX_ZOOMIE_DURATION_SEC))
+        }
+        onBossEnded?.invoke(BossEndedEvent(victory = true))
     }
 
     private fun spawnWave() {

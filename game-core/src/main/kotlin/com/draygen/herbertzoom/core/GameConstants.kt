@@ -62,4 +62,71 @@ object GameConstants {
     const val POINTS_PER_METER_RUN = 10
     const val POINTS_PER_SCRATCH_SPOT = 500
     const val ZOOMIE_PER_SCRATCH_SPOT = 45f
+
+    // ===================================================================
+    // KITTY BOSS ENCOUNTER
+    // A contained, ridiculous set-piece that interrupts the run at 200 toys
+    // and hands it straight back. Every number here is tuned to stay inside
+    // the game's cozy contract: telegraphed, forgiving, never punishing.
+    // ===================================================================
+
+    /** Toys collected in a single run that summon the encounter. Once per run. */
+    const val BOSS_TRIGGER_TOYS = 200
+
+    // Arena: the vertical band Herbert may dodge within during the fight.
+    // Matches Herbert's normal steering clamp so the fight feels like the run.
+    const val BOSS_ARENA_TOP = 0.18f * WORLD_HEIGHT
+    const val BOSS_ARENA_BOTTOM = 0.88f * WORLD_HEIGHT
+    val BOSS_ARENA_HEIGHT = BOSS_ARENA_BOTTOM - BOSS_ARENA_TOP
+
+    /** Paw / tail / stare patterns always leave a corridor at least this tall. */
+    const val BOSS_MIN_SAFE_GAP = 230f
+
+    /**
+     * Yarn lanes are narrower bands than a paw slam, so they get their own (still
+     * generous) corridor guarantee: over twice Herbert's 72-unit hitbox width,
+     * and yarn can be jumped as well as dodged.
+     */
+    const val BOSS_MIN_YARN_CORRIDOR = 150f
+
+    // Intro beats (seconds). Total reveal is deliberately unhurried.
+    const val BOSS_INTRO_PAUSE_SEC = 0.7f      // the world holds its breath
+    const val BOSS_INTRO_RUMBLE_SEC = 1.5f     // rumble + Kitty rises into frame
+    const val BOSS_INTRO_TITLE_SEC = 1.9f      // "KITTY HAS HAD ENOUGH"
+    val BOSS_INTRO_DURATION = BOSS_INTRO_PAUSE_SEC + BOSS_INTRO_RUMBLE_SEC + BOSS_INTRO_TITLE_SEC
+
+    // World scroll scale while the encounter owns the screen.
+    const val BOSS_INTRO_SCROLL = 0.22f
+    const val BOSS_FIGHT_SCROLL = 0.30f
+
+    // Grump Meter - Kitty's patience, NOT health. Empty = she is over it.
+    const val BOSS_GRUMP_MAX = 100f
+    const val BOSS_GRUMP_PER_BEAM = 30f        // -> 4 eye beams to win
+    const val BOSS_PHASE2_GRUMP = 70f          // at/below this she is Very Annoyed
+    const val BOSS_PHASE3_GRUMP = 35f          // at/below this she has Had Enough
+
+    // Blue Eye Energy: 3 orbs charge one beam.
+    const val BOSS_ENERGY_PER_BEAM = 3
+    const val BOSS_ENERGY_ORB_RADIUS = 52f     // generous, like every pickup
+    const val BOSS_ENERGY_ORB_SPEED = 420f
+    const val BOSS_MAX_ENERGY_ORBS = 4         // bounded for frame budget
+
+    // Eye beam firing
+    const val BOSS_BEAM_DURATION = 0.85f
+    const val BOSS_BEAM_HALF_HEIGHT = 44f
+
+    // Yarn barrage
+    const val BOSS_YARN_RADIUS = 46f
+    const val BOSS_MAX_YARN = 5                // hard cap on live projectiles
+
+    // Boss failure buffer: a boss hit must never end a run outright.
+    const val BOSS_STUMBLE_BUFFER = 2          // 3 boss hits before the cute flop
+
+    // Victory sequence beats (seconds)
+    const val BOSS_VICTORY_BLAST_SEC = 1.2f    // she takes the full beam
+    const val BOSS_VICTORY_SMOKE_SEC = 1.0f    // comedic pause behind the fluff
+    const val BOSS_VICTORY_REVEAL_SEC = 2.2f   // unharmed, deeply unimpressed
+    val BOSS_VICTORY_DURATION = BOSS_VICTORY_BLAST_SEC + BOSS_VICTORY_SMOKE_SEC + BOSS_VICTORY_REVEAL_SEC
+
+    const val BOSS_VICTORY_BONUS = 20_000L
 }
