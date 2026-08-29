@@ -115,14 +115,54 @@ re-pairing is normally needed.
 ## 5. Assets & Licenses
 Documented in `docs/ASSETS.md`. All visual and audio rendering is 100% original programmatic / synthesized vector & PCM sound code under project license (MIT / Proprietary). No third-party copyright assets are loaded.
 
-## 6. What Claude Should Do Next (Recommended Tasks)
-1. **Herbert Visual Variations / Polish**:
-   - Add open cardboard box dive animation state when landing inside open cardboard boxes.
-2. **Audio / Haptic Settings**:
-   - Add a subtle gear / audio toggle icon on Title screen to mute sound/vibration.
-3. **Subsequent Environments (Post Milestone 1)**:
-   - Level 2: *Kitchen Tile Drift* (low friction sliding mechanics).
-   - Level 3: *Midnight Hallway Sprint*.
+## 6. What Claude Should Do Next
+
+### NEXT UP: Level 2 - Kitchen Tile Drift (agreed, not started)
+Design settled 2026-08-29; no code written yet. The agreed shape:
+
+1. **`RoomTheme` enum** in game-core (`LIVING_ROOM`, `KITCHEN`), switched by
+   distance travelled so one run flows through the house. Leaves room for
+   Level 3 without another rework.
+2. **Drift physics**: give Herbert a lateral *velocity* that accelerates toward
+   the steer target and decays, instead of today's snap-to-target, so he
+   overshoots and has to counter-steer. **Gated on the theme - Level 1's feel
+   must stay byte-identical.** (Today: `steerTo` sets `targetY` and
+   `Herbert.update` closes at `LATERAL_STEER_SPEED` 3200/s.)
+3. **Kitchen spawn table**: new obstacle types (food bowls, dishwasher door,
+   mop, spilled kibble, island legs); pickups unchanged.
+4. **Kitchen art** in `WorldRenderer`: tile floor, counters, cabinets.
+5. Tests in game-core, then verify on the emulator.
+
+Two decisions taken up front:
+- **The boss stays orthogonal.** Kitty still triggers at 200 toys in whichever
+  room Herbert is in; she does not become a Level 1 gate.
+- **`LivingRoomWorld` keeps its name for now.** It will host a kitchen, so the
+  name goes stale - do the rename as its own tidy commit rather than burying a
+  mechanical rename inside the feature diff.
+
+Then: Level 3 *Midnight Hallway Sprint*.
+
+### Smaller outstanding polish
+- Audio / haptics mute toggle on the Title screen (still unbuilt).
+- Cardboard box dive animation when Herbert lands inside an open box.
+- Title screen's tutorial pill sits slightly under the bottom safe-area edge.
+
+### Ship-readiness audit (2026-08-29) - if a store release is ever wanted
+Good: every asset is original procedural/synthesized code, there is no
+`INTERNET` permission and nothing is collected, the bundle is 2.6 MB, and
+`./gradlew bundleRelease` already produces a valid `.aab`.
+
+Blockers found:
+- **No app icon.** The manifest still points at
+  `@android:drawable/sym_def_app_icon` and there is no `res/mipmap` at all.
+  Needs an adaptive launcher icon plus a 512x512 store icon.
+- **No release keystore.** An upload key would have to be created and kept
+  safe permanently. See the release-signing note in section 4 for why the
+  debug key is currently used for side-loading.
+- Play account ($25), listing assets, privacy policy URL, and - for a new
+  *personal* Play account - 12 testers for 14 days before production.
+- `docs/ASSETS.md` says "Proprietary / MIT"; pick one before selling.
+- Content is Milestone 1: one room, one boss. Fine as a free v1, thin for paid.
 
 ## 7. The Spot (added this pass)
 Herbert's real habit of circling and scratching a discoloured patch of floor is
