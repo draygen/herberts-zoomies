@@ -738,4 +738,97 @@ class BossEncounterTest {
         quick.update(0.016f)
         assertEquals(RunMode.BOSS_INTRO, quick.runMode)
     }
+
+    // =========================================================================
+    // CUTSCENE BEATS
+    //
+    // The renderer and the audio layer both drive off these, so a beat landing
+    // in the wrong place desynchronises the whole reveal.
+    // =========================================================================
+
+    @Test
+    fun `intro beats run hold then rumble then title and cover the whole intro`() {
+        assertEquals(IntroBeat.HOLD, KittyBoss.introBeatAt(0f))
+        assertEquals(IntroBeat.HOLD, KittyBoss.introBeatAt(GameConstants.BOSS_INTRO_PAUSE_SEC - 0.01f))
+        assertEquals(IntroBeat.RUMBLE, KittyBoss.introBeatAt(GameConstants.BOSS_INTRO_PAUSE_SEC))
+        assertEquals(
+            IntroBeat.RUMBLE,
+            KittyBoss.introBeatAt(GameConstants.BOSS_INTRO_PAUSE_SEC + GameConstants.BOSS_INTRO_RUMBLE_SEC - 0.01f)
+        )
+        assertEquals(
+            IntroBeat.TITLE,
+            KittyBoss.introBeatAt(GameConstants.BOSS_INTRO_PAUSE_SEC + GameConstants.BOSS_INTRO_RUMBLE_SEC)
+        )
+        // The title beat must still be the one showing as the intro hands over.
+        assertEquals(IntroBeat.TITLE, KittyBoss.introBeatAt(GameConstants.BOSS_INTRO_DURATION - 0.01f))
+    }
+
+    @Test
+    fun `Kitty is fully risen by the time the title card appears`() {
+        assertEquals(0f, KittyBoss.introRiseProgress(0f), 1e-4f)
+        assertEquals(0f, KittyBoss.introRiseProgress(GameConstants.BOSS_INTRO_PAUSE_SEC), 1e-4f)
+        assertEquals(
+            0.5f,
+            KittyBoss.introRiseProgress(GameConstants.BOSS_INTRO_PAUSE_SEC + GameConstants.BOSS_INTRO_RUMBLE_SEC / 2f),
+            1e-3f
+        )
+        // She must never still be sliding up while the title is on screen.
+        assertEquals(
+            1f,
+            KittyBoss.introRiseProgress(GameConstants.BOSS_INTRO_PAUSE_SEC + GameConstants.BOSS_INTRO_RUMBLE_SEC),
+            1e-4f
+        )
+        assertEquals(1f, KittyBoss.introRiseProgress(GameConstants.BOSS_INTRO_DURATION), 1e-4f)
+    }
+
+    @Test
+    fun `victory beats run blast then smoke then reveal and cover the whole sequence`() {
+        val blast = GameConstants.BOSS_VICTORY_BLAST_SEC
+        val smoke = GameConstants.BOSS_VICTORY_SMOKE_SEC
+
+        assertEquals(VictoryBeat.BLAST, KittyBoss.victoryBeatAt(0f))
+        assertEquals(VictoryBeat.BLAST, KittyBoss.victoryBeatAt(blast - 0.01f))
+        assertEquals(VictoryBeat.SMOKE, KittyBoss.victoryBeatAt(blast))
+        assertEquals(VictoryBeat.SMOKE, KittyBoss.victoryBeatAt(blast + smoke - 0.01f))
+        assertEquals(VictoryBeat.REVEAL, KittyBoss.victoryBeatAt(blast + smoke))
+        assertEquals(VictoryBeat.REVEAL, KittyBoss.victoryBeatAt(GameConstants.BOSS_VICTORY_DURATION - 0.01f))
+    }
+
+    @Test
+    fun `each victory beat runs a full zero to one and resets at the next beat`() {
+        val blast = GameConstants.BOSS_VICTORY_BLAST_SEC
+        val smoke = GameConstants.BOSS_VICTORY_SMOKE_SEC
+
+        assertEquals(0f, KittyBoss.victoryBeatProgress(0f), 1e-4f)
+        assertEquals(0.5f, KittyBoss.victoryBeatProgress(blast / 2f), 1e-3f)
+
+        // Each beat restarts its own 0..1, rather than continuing the last one.
+        assertEquals(0f, KittyBoss.victoryBeatProgress(blast), 1e-3f)
+        assertEquals(0.5f, KittyBoss.victoryBeatProgress(blast + smoke / 2f), 1e-3f)
+        assertEquals(0f, KittyBoss.victoryBeatProgress(blast + smoke), 1e-3f)
+
+        // And the last beat is essentially complete as the encounter hands back.
+        assertEquals(1f, KittyBoss.victoryBeatProgress(GameConstants.BOSS_VICTORY_DURATION), 1e-3f)
+    }
+
+    @Test
+    fun `the beat helpers agree with the mode timer the world actually reports`() {
+        world.debugForceBoss()
+
+        // Walk the intro and confirm the helper never claims a beat the world
+        // has not reached, right up to the handover into the fight.
+        var sawRumble = false
+        var sawTitle = false
+        while (world.runMode == RunMode.BOSS_INTRO) {
+            when (KittyBoss.introBeatAt(world.bossModeTimer)) {
+                IntroBeat.RUMBLE -> sawRumble = true
+                IntroBeat.TITLE -> sawTitle = true
+                IntroBeat.HOLD -> assertFalse(sawRumble, "the intro must not fall back to HOLD")
+            }
+            world.update(0.016f)
+        }
+        assertTrue(sawRumble, "the rumble beat must actually be reached")
+        assertTrue(sawTitle, "the title beat must actually be reached")
+        assertEquals(RunMode.BOSS_FIGHT, world.runMode)
+    }
 }

@@ -60,3 +60,12 @@ adb -s 192.168.0.71:5555 shell am start -n com.draygen.herbertzoom/.MainActivity
 - **Collectibles**: Pick up fish treats and toy mice to charge the Zoomie Meter.
 - **Maximum Zoomies**: Fills meter to 100% to trigger wild speed boost, dilated blue eyes, speed trails, 3x score multiplier, and soft-obstacle scatter.
 - **Fail State**: Wholesome crash flopping onto pink belly with dazed cute eyes. Tap "AGAIN!" to replay. High scores persist locally.
+
+### 🐈 Boss: Kitty Has Had Enough
+Collect **200 toys in one run** and Kitty turns up to put a stop to it. Dodge her
+telegraphed paw swats, tail sweeps and yarn barrages by diving for the green
+corridor, hoover up **Blue Zoomie Energy** orbs, and tap **ZAP!** to hit her with
+Herbert's ridiculous cyan eye beams. Four beams empty her patience and she gives
+up — worth 20,000 points, and the run hands straight back into Maximum Zoomies.
+Nobody is ever hurt; she is just extremely over it. Full design notes in
+[GAME_DESIGN.md](GAME_DESIGN.md), implementation notes in [HANDOFF.md](HANDOFF.md).

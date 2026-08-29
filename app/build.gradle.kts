@@ -21,6 +21,12 @@ android {
         }
     }
 
+    // BuildConfig.DEBUG gates the Kitty encounter's dev shortcuts (early toy
+    // threshold + the force-summon hotspot). AGP 8 defaults this off.
+    buildFeatures {
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

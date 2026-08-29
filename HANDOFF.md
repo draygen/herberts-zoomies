@@ -118,7 +118,65 @@ Both hold a solid **60 FPS** with the game running. Full details, including the
 landscape-window `spin` gotcha and real-vs-emulated differences, are in
 `docs/EMULATOR.md`.
 
-## 9. Decisions Not to Casually Reverse
+## 9. The Kitty Boss Encounter (completed this pass)
+
+The simulation had already landed in `game-core` (commit `3b4cc7f`); this pass
+built the entire **presentation layer**, which was the unfinished half. Before
+it, the app module contained zero references to the boss - the fight ran
+correctly in tests and was completely invisible on device.
+
+Added:
+- **`KittyBossRenderer`** (app): giant Kitty in Kitty's exact palette, with
+  gaze-tracking pupils, progressively flattening ears, blown-pupil shock on a
+  beam hit, the grooming lick, telegraph/strike bands, the slamming giant paw,
+  tail sweep, stare reticle, yarn lane markers, energy orbs, Herbert's twin eye
+  beams, and all three victory exits.
+- **Boss HUD** (`GameHudRenderer.renderBossHud` / `renderBossCutscene`): the
+  Grump Meter with per-beam tick marks, the remaining stumble buffer as paw
+  pips, Blue Eye Energy pips, the ZAP button, the intro title card and the
+  victory banner.
+- **Boss audio** (`SoundEffects`): rumble, telegraph, slam, beam, Kitty's
+  startled chirp, and the victory fanfare - all synthesized, as before.
+- **`IntroBeat` + cutscene beat helpers** in `KittyBoss`'s companion, so the
+  renderer and the audio layer read the same clock. 5 new tests; 53 pass.
+
+### Reading the fight
+The one rule the visuals owe the player: **an attack must be readable before it
+can hurt.** Telegraph bands are hazard-yellow with marching stripes, the safe
+corridor is tinted green, and a band only turns red once it is genuinely live.
+The giant paw deliberately **slams onto the band and stays** rather than
+sweeping across it - the sim makes the whole row dangerous for the whole strike,
+so a travelling paw would lie about where the danger is.
+
+### Two things worth knowing
+- **The 19.5:9 safe area.** The 1920x1080 virtual space is drawn with *fill*
+  scaling, so on both the S24 Ultra and the dev emulator only world y in roughly
+  **97..983** is actually on screen. The first HUD pass put the ZAP button and
+  the coaching line outside it. `GameHudRenderer.SAFE_TOP` / `SAFE_BOTTOM` record
+  this; anything the player must see or touch has to live inside it. (The title
+  screen's tutorial pill still sits slightly under the bottom edge - pre-existing.)
+- **Input must not mutate the world.** Firing the beam from `onTouchEvent`
+  crashed the renderer with `ConcurrentModificationException` on GameLoopThread:
+  the callback spawned particles while the loop was iterating the particle list
+  to draw it. Touch handlers now only set `pending*` intent flags, and
+  `consumePendingInput()` applies them on the game thread. The two restart
+  buttons were routed through the same queue, since `startNewRun()` clears the
+  entity lists the render pass walks.
+
+### Dev shortcuts (debug builds only, all behind `BuildConfig.DEBUG`)
+Reaching the fight legitimately needs 200 toys, which is impractical to iterate
+on, so debug builds lower `bossToyThreshold` to 12 and add two tap hotspots
+during play, both in the empty strip between the combo badge and the zoomie
+meter:
+
+| Hotspot (world coords)      | Effect                                  |
+|-----------------------------|-----------------------------------------|
+| x 1000-1200, y 100-180      | `debugForceBoss()` - summon Kitty now   |
+| x 1230-1430, y 100-180      | `debugChargeEyes()` - fill the eye beam |
+
+None of this exists in a release build.
+
+## 10. Decisions Not to Casually Reverse
 - Keep `game-core` 100% decoupled from Android SDK so physics/rules can be tested instantaneously on JVM without emulator/device overhead.
 - Keep the coordinate system virtualized (1920x1080) with dynamic aspect ratio fill to preserve crisp rendering on any phone.
 - Maintain wholesome / no-harm policy for Herbert and Kitty (flops, loafs, and comical stumbles only).
@@ -126,3 +184,9 @@ landscape-window `spin` gotcha and real-vs-emulated differences, are in
 - Do not hardcode anything to the emulator's 1440x3120 panel; the virtual 1920x1080 space with aspect-fill scaling stays authoritative.
 - Keep The Spot rare and always safe. It is a joke about Herbert, not a scoring staple or a hazard.
 - Keep `GameSurfaceView.resume()` idempotent; two game-loop threads crash the renderer.
+- Never mutate the world (or spawn particles) from `onTouchEvent`. Set a
+  `pending*` flag and let `consumePendingInput()` apply it on the game thread.
+- Keep the boss's danger bands honest: telegraph before danger, green corridor
+  always visible, and no decoration drawn on top of a live band.
+- Keep Kitty unhurt. The Grump Meter is patience, not health, and the encounter
+  always hands the run back.

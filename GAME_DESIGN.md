@@ -45,6 +45,42 @@ Tone: Adorable, stupid, chaotic, cozy, funny, never violent.
    - Failure states include: Flopping onto pink belly with dazed cute eyes, diving into a box and loafing, abruptly stopping to lick paw.
    - No injury, blood, or distress.
 
+7. **The Kitty Boss Encounter**:
+   - At **200 toys in a single run**, Kitty has finally had enough. The encounter
+     is a contained detour *layered over* the runner, never a replacement for it:
+     `RunMode` walks `RUNNING -> BOSS_INTRO -> BOSS_FIGHT -> BOSS_VICTORY ->
+     RUNNING`, all inside `GamePlayState.PLAYING`. Score, combo, high score and
+     the zoomie meter carry straight through, and the trigger latches for the run
+     so toys 201+ can never re-summon her.
+   - **Kitty**: enormous, seated at the right of the arena, tracking Herbert with
+     her eyes, ears flattening further the more fed up she gets. She is **never
+     hurt** — the *Grump Meter* is her patience, and emptying it just means she
+     gives up and leaves.
+   - **Herbert's answer**: *Blue Zoomie Energy* orbs drift in; three of them
+     charge one pair of ridiculous cyan eye beams, fired with the **ZAP!** button.
+     Four landed beams empty her patience. A beam always interrupts whatever she
+     was winding up, so firing is never punished.
+   - **Her attacks**: giant paw swat, double swat (two paws around a guaranteed
+     corridor), tail sweep (jump it or stay high), tracking stare, yarn barrage,
+     and — after every third attack — she stops to **wash a paw**, which doubles
+     the energy rate and hands the player a free charging window.
+   - **Fairness is structural.** Patterns are *built around* a guaranteed safe
+     corridor rather than rolled and checked, so an unfair pattern is not
+     something the RNG can produce. Every attack opens on a ≥0.7s telegraph,
+     danger exists only during the strike, and recovery never drops below 1.0s.
+   - **Readability contract (renderer)**: telegraph bands are hazard-yellow with
+     marching stripes and the safe corridor is tinted green; a band only turns
+     red once it is genuinely live. The giant paw **slams onto the band and
+     stays** rather than sweeping across it, because the whole row is dangerous
+     for the whole strike and a travelling paw would misrepresent that.
+   - **Failure keeps the cozy contract**: the fight grants a deeper stumble
+     buffer (3 bonks), a hit costs a stumble plus the combo plus one charge of
+     energy, and only repeated mistakes reach the normal wholesome flop.
+   - **Victory**: blast → a comedic puff of loose fur → she is revealed
+     completely unharmed and deeply unimpressed, then leaves in one of three
+     ways (waddles off, becomes a loaf, or grooms and ignores you). Worth
+     **20,000 points**, and the run resumes straight into Maximum Zoomies.
+
 ## 4. Scoring & Persistence
 - Score = (Distance Travelled) + (Toys/Treats * 100) + (Near Misses * 50) * Combo Multiplier.
 - Local High Score saved via Android `SharedPreferences`. No network/cloud required.

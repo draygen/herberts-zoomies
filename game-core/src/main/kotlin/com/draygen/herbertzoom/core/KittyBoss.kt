@@ -16,6 +16,18 @@ enum class VictoryBeat {
     REVEAL
 }
 
+/** Beats of the intro reveal, for renderers and audio. */
+enum class IntroBeat {
+    /** The room holds its breath. Nothing has appeared yet. */
+    HOLD,
+
+    /** Rumble, and Kitty rises into frame. */
+    RUMBLE,
+
+    /** She is up. "KITTY HAS HAD ENOUGH". */
+    TITLE
+}
+
 /**
  * The Kitty boss encounter simulation. Pure logic, zero rendering, zero Android.
  *
@@ -361,6 +373,16 @@ class KittyBoss(private val rng: Random = Random()) {
         return true
     }
 
+    /**
+     * Development-only shortcut: fill Herbert's eyes immediately. The beam and
+     * the victory sequence are otherwise only reachable by actually collecting
+     * orbs, which makes them impractical to iterate on. Never reachable from
+     * release gameplay - see the BuildConfig.DEBUG gate in GameSurfaceView.
+     */
+    fun debugChargeEyes() {
+        eyeEnergy = GameConstants.BOSS_ENERGY_PER_BEAM
+    }
+
     private fun updatePhase() {
         val next = when {
             grump > GameConstants.BOSS_PHASE2_GRUMP -> BossPhase.MILDLY_IRRITATED
@@ -454,6 +476,42 @@ class KittyBoss(private val rng: Random = Random()) {
     }
 
     companion object {
+
+        // --- Cutscene beats ---------------------------------------------------
+        // The intro and victory sequences are pure presentation, but the renderer
+        // and the audio layer have to agree on where the beats fall, so the
+        // arithmetic lives here rather than being duplicated in each of them.
+
+        /** Which intro beat a time [t] seconds into BOSS_INTRO falls in. */
+        fun introBeatAt(t: Float): IntroBeat = when {
+            t < GameConstants.BOSS_INTRO_PAUSE_SEC -> IntroBeat.HOLD
+            t < GameConstants.BOSS_INTRO_PAUSE_SEC + GameConstants.BOSS_INTRO_RUMBLE_SEC -> IntroBeat.RUMBLE
+            else -> IntroBeat.TITLE
+        }
+
+        /** 0..1 through Kitty rising into frame. 1 once she is fully up. */
+        fun introRiseProgress(t: Float): Float =
+            ((t - GameConstants.BOSS_INTRO_PAUSE_SEC) / GameConstants.BOSS_INTRO_RUMBLE_SEC)
+                .coerceIn(0f, 1f)
+
+        /** Which victory beat a time [t] seconds into BOSS_VICTORY falls in. */
+        fun victoryBeatAt(t: Float): VictoryBeat = when {
+            t < GameConstants.BOSS_VICTORY_BLAST_SEC -> VictoryBeat.BLAST
+            t < GameConstants.BOSS_VICTORY_BLAST_SEC + GameConstants.BOSS_VICTORY_SMOKE_SEC -> VictoryBeat.SMOKE
+            else -> VictoryBeat.REVEAL
+        }
+
+        /** 0..1 through whichever victory beat [t] falls in. */
+        fun victoryBeatProgress(t: Float): Float {
+            val blast = GameConstants.BOSS_VICTORY_BLAST_SEC
+            val smoke = GameConstants.BOSS_VICTORY_SMOKE_SEC
+            return when (victoryBeatAt(t)) {
+                VictoryBeat.BLAST -> (t / blast).coerceIn(0f, 1f)
+                VictoryBeat.SMOKE -> ((t - blast) / smoke).coerceIn(0f, 1f)
+                VictoryBeat.REVEAL ->
+                    ((t - blast - smoke) / GameConstants.BOSS_VICTORY_REVEAL_SEC).coerceIn(0f, 1f)
+            }
+        }
 
         /** Per-phase attack clock. Telegraphs never drop below 0.7s. */
         fun timingsFor(phase: BossPhase): Triple<Float, Float, Float> = when (phase) {
